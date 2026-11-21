@@ -1,0 +1,10 @@
+services:
+  chess:
+    build: .
+    image: chess-3d:latest
+    container_name: chess-3d
+    ports:
+      - "${CHESS_PORT:-8765}:80"
+    volumes:
+      - ./models:/usr/share/nginx/html/models:ro   # drop custom .glb pieces here, then refresh
+    restart: unless-stopped
