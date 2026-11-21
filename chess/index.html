@@ -1,0 +1,3179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Living Stone Chess</title>
+<style>
+  :root {
+    --panel: rgba(16, 14, 12, 0.82);
+    --text: #ece4d4;
+    --muted: #a39a88;
+    --accent: #e8b25a;
+    --line: rgba(255, 220, 160, 0.14);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0f14; color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  canvas { display: block; }
+  #panel { position: fixed; top: 16px; left: 16px; width: 270px; max-height: calc(100% - 32px);
+    display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 12px;
+    background: var(--panel); backdrop-filter: blur(8px); border: 1px solid var(--line); }
+  h1 { margin: 0; font: 600 19px/1.2 Georgia, "Times New Roman", serif; letter-spacing: 0.03em; color: var(--accent); }
+  #status { font-size: 15px; font-weight: 600; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.06); }
+  #status.alert { color: #ff8a7a; }
+  #status.done { color: var(--accent); }
+  label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 12px; }
+  label.check { flex-direction: row; align-items: center; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer; }
+  select, button { font: inherit; color: var(--text); background: #2b2722; border: 1px solid var(--line);
+    border-radius: 8px; padding: 7px 10px; cursor: pointer; }
+  button:hover, select:hover { background: #3a342c; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.on { border-color: var(--accent); color: var(--accent); }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row > * { flex: 1; }
+  #moves { overflow-y: auto; min-height: 60px; font-family: ui-monospace, Menlo, monospace; font-size: 13px;
+    border-top: 1px solid var(--line); padding-top: 8px; display: grid; grid-template-columns: 32px 1fr 1fr; row-gap: 2px; }
+  #moves .n { color: var(--muted); }
+  #moves .last { color: var(--accent); }
+  #hint { color: var(--muted); font-size: 12px; }
+  #thinking { display: none; color: var(--accent); font-size: 12px; }
+  .phead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  #panelHide { padding: 2px 9px; font-size: 14px; line-height: 1.4; }
+  #panel { transition: transform 0.25s ease, opacity 0.25s ease; }
+  #panel.hidden { transform: translateX(calc(-100% - 24px)); opacity: 0; pointer-events: none; }
+  #panelShow { position: fixed; top: 16px; left: 16px; z-index: 6; display: none; background: var(--panel); backdrop-filter: blur(8px); }
+  #panelShow.on { display: block; }
+  #zoomBar { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 6px; z-index: 5; }
+  #zoomBar button { width: 44px; height: 44px; font-size: 20px; padding: 0; background: var(--panel); }
+  #promo { position: fixed; inset: 0; display: none; place-items: center; background: rgba(0,0,0,0.45); }
+  #promo .box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; text-align: center; }
+  #promo .choices { display: flex; gap: 8px; margin-top: 10px; }
+  #promo button { font-size: 34px; width: 64px; height: 64px; padding: 0; }
+  #models { position: fixed; inset: 0; display: none; place-items: center; background: rgba(0,0,0,0.55); z-index: 10; }
+  #models .sheet { width: min(860px, calc(100% - 32px)); max-height: 86vh; overflow: auto; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  #models h2 { margin: 0; font: 600 18px Georgia, serif; color: var(--accent); }
+  #models p, #mLib { margin: 0; color: var(--muted); font-size: 13px; }
+  #models table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #models th { text-align: left; color: var(--muted); font-weight: 500; padding: 4px; }
+  #models td { padding: 4px; vertical-align: middle; }
+  #models td select { width: 100%; padding: 5px 6px; }
+  #models td.pname { font-weight: 600; white-space: nowrap; }
+  #models td.merr { color: #ff9a8a; font-size: 12px; max-width: 200px; }
+  #models .minfo { color: var(--muted); }
+  .muted { color: var(--muted); font-size: 12px; }
+  #studio { position: fixed; inset: 0; display: none; flex-direction: column; background: #0f1116; z-index: 20; }
+  .stHead { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .stHead h2 { margin: 0; font: 600 18px Georgia, serif; color: var(--accent); }
+  .stHead #stClose { margin-left: auto; }
+  .stBody { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px 1fr 360px; }
+  .stLeft, .stRight { overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .stLeft { border-right: 1px solid var(--line); }
+  .stRight { border-left: 1px solid var(--line); font-size: 13px; }
+  .stView { position: relative; min-width: 0; }
+  .stBar { height: 44px; display: flex; gap: 8px; align-items: center; justify-content: center; border-top: 1px solid var(--line); }
+  .stItem { text-align: left; display: flex; flex-direction: column; gap: 2px; }
+  .stItem span { color: var(--muted); font-size: 12px; }
+  .stItem.on { border-color: var(--accent); }
+  .stRight h3 { margin: 0; font-size: 15px; word-break: break-all; }
+  .stRight h4 { margin: 8px 0 0; font-size: 13px; color: var(--accent); }
+  .stRight table { width: 100%; border-collapse: collapse; }
+  .stRight td { padding: 3px 4px; vertical-align: middle; }
+  .stRight select { width: 100%; padding: 4px 6px; }
+  .caps td.ok { color: #8fe08f; } .caps td.proc { color: #ffc46b; } .caps td.none { color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+  .chip.ok { color: #8fe08f; border-color: #8fe08f55; } .chip.fire { color: #ff9a50; border-color: #ff9a5066; }
+  .clips { display: flex; flex-wrap: wrap; gap: 6px; }
+  button.mini { padding: 3px 8px; font-size: 12px; }
+  .flapopts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .flapopts[hidden] { display: none; }
+  .sidebox { border: 1px solid var(--line); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .sidebox .row > b { flex: 0 0 auto; }
+  .parts td:first-child { word-break: break-all; }
+  input[type=color] { width: 44px; height: 26px; padding: 0; border: 1px solid var(--line); background: none; }
+  .usefor { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  @media (max-width: 900px) { .stBody { grid-template-columns: 1fr; grid-auto-rows: auto 50vh auto; overflow-y: auto; } }
+  #models .tablewrap { overflow-x: auto; }
+  label.btn { display: inline-flex; align-items: center; justify-content: center; flex-direction: row; font-size: 14px; color: var(--text);
+    background: #2b2722; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; cursor: pointer; }
+  label.btn:hover { background: #3a342c; }
+  @media (max-width: 600px) {
+    #panel { top: auto; bottom: 16px; left: 16px; right: 16px; width: auto; max-height: 42%; }
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script src="engine.js"></script>
+</head>
+<body>
+<div id="panel">
+  <div class="phead"><h1>⚔ Living Stone Chess</h1><button id="panelHide" title="Hide settings (h)">✕</button></div>
+  <div id="status">White to move</div>
+  <div id="thinking">The opponent is pondering…</div>
+  <div class="row">
+    <label>Mode
+      <select id="mode">
+        <option value="pvp">Two players</option>
+        <option value="ai-w">You (White) vs AI</option>
+        <option value="ai-b">You (Black) vs AI</option>
+      </select>
+    </label>
+    <label>AI level
+      <select id="level">
+        <option value="1">Easy</option>
+        <option value="2" selected>Medium</option>
+        <option value="3">Hard</option>
+      </select>
+    </label>
+  </div>
+  <div class="row">
+    <label>Battles
+      <select id="battle">
+        <option value="epic" selected>Epic duel</option>
+        <option value="quick">Quick strike</option>
+      </select>
+    </label>
+    <button id="giant">Giant view</button>
+  </div>
+  <div class="row">
+    <label class="check"><input type="checkbox" id="cine" checked /> Cinematic</label>
+    <label class="check"><input type="checkbox" id="sound" checked /> Sound</label>
+    <label class="check"><input type="checkbox" id="music" checked /> Music</label>
+  </div>
+  <div class="row"><button id="modelsBtn">⚙ Piece models</button><button id="studioBtn">🎬 Studio</button></div>
+  <div class="row">
+    <button id="new">New game</button>
+    <button id="undo">Undo</button>
+    <button id="flip">Flip</button>
+  </div>
+  <div id="moves"></div>
+  <div id="hint">Click a piece, then a highlighted square. Drag to orbit, scroll to zoom, <b>g</b> for giant view.</div>
+</div>
+<button id="panelShow" title="Show settings (h)">☰ Settings</button>
+<div id="zoomBar">
+  <button id="zoomIn" title="Zoom in (+)">＋</button>
+  <button id="zoomOut" title="Zoom out (−)">－</button>
+  <button id="zoomReset" title="Reset view (0)">⌂</button>
+</div>
+<div id="promo"><div class="box">Promote to<div class="choices"></div></div></div>
+<div id="studio">
+  <div class="stHead">
+    <h2>🎬 Model Studio</h2>
+    <span class="muted">Every model you've added, what it can do, and how it acts in battle.</span>
+    <span id="stStatus" class="muted"></span>
+    <button id="stClose">Close</button>
+  </div>
+  <div class="stBody">
+    <aside class="stLeft">
+      <label class="btn">＋ Add models<input type="file" id="stAdd" webkitdirectory multiple hidden></label>
+      <div id="stList"></div>
+    </aside>
+    <section class="stView">
+      <canvas id="stCanvas"></canvas>
+      <div class="stBar">
+        <select id="stArmy"><option value="w" selected>Preview: White side</option><option value="b">Preview: Black side</option><option value="own">Preview: original file</option></select>
+        <button id="stTurn" class="on">⟳ Turntable</button>
+      </div>
+    </section>
+    <aside id="stPanel" class="stRight"></aside>
+  </div>
+</div>
+<div id="models"><div class="sheet">
+  <h2>Piece models</h2>
+  <p>Use your own 3D pieces. Choose the folder that holds your <b>.fbx</b> (or .glb / .gltf) files together with their
+    textures (.jpg / .png); textures are matched to the models automatically. Blender <b>.blend</b> files can't be read by a
+    browser — export FBX or GLB from Blender. Everything is saved in this browser; pieces left on "Built-in statue" keep the default look.</p>
+  <div class="row">
+    <label class="btn">📁 Choose model folder<input type="file" id="mFolder" webkitdirectory multiple hidden></label>
+    <label class="btn">＋ Add files<input type="file" id="mFiles" multiple accept=".fbx,.glb,.gltf,.bin,.jpg,.jpeg,.png,.tga,.bmp,.webp" hidden></label>
+  </div>
+  <div id="mLib"></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Piece</th><th>Model file</th><th>Part of file</th><th>Facing</th><th>Upright</th><th>Size</th><th>Fire</th><th></th></tr></thead>
+    <tbody id="mRows"></tbody>
+  </table></div>
+  <label class="check"><input type="checkbox" id="mKeep" /> Models keep their own colours by default — how White and Black differ is set per model in the 🎬 Studio (Sides). Off = marble / obsidian for all.</label>
+  <div class="row"><button id="mClear">Remove all custom models</button><button id="mStudio">🎬 Open Studio</button><button id="mDone">Done</button></div>
+</div></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+
+const C = window.Chess;
+const rand = Math.random;
+const V3 = THREE.Vector3;
+
+// ================================================================== procedural textures
+function hash(x, y, s) {
+  let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(s, 982451653);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function vnoise(x, y, s, p) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const w = (n) => (p ? ((n % p) + p) % p : n);
+  const x0 = w(xi), x1 = w(xi + 1), y0 = w(yi), y1 = w(yi + 1);
+  const a = hash(x0, y0, s), b = hash(x1, y0, s), c = hash(x0, y1, s), d = hash(x1, y1, s);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+function fbm(x, y, oct, s, p) {
+  let sum = 0, amp = 0.5, f = 1;
+  for (let i = 0; i < oct; i++) { sum += amp * vnoise(x * f, y * f, s + i, p && p * f); f *= 2; amp *= 0.5; }
+  return sum / (1 - Math.pow(0.5, oct));
+}
+function canvasTexture(size, fn, repeat) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  const img = g.createImageData(size, size);
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      const [r, gr, b] = fn(x / size, y / size);
+      const i = (y * size + x) * 4;
+      img.data[i] = r; img.data[i + 1] = gr; img.data[i + 2] = b; img.data[i + 3] = 255;
+    }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat, repeat); }
+  return t;
+}
+const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+function marble(base, vein, seed) {
+  const ang = rand() * Math.PI, ca = Math.cos(ang), sa = Math.sin(ang), freq = 6 + rand() * 6;
+  return canvasTexture(256, (u, v) => {
+    const t = fbm(u * 3 + seed, v * 3 + seed * 1.7, 5, seed);
+    const m = Math.abs(Math.sin((u * ca + v * sa) * freq + t * 7));
+    const veinAmt = clamp01(Math.pow(1 - m, 10) * 0.9 + Math.pow(1 - m, 2.5) * 0.18);
+    const speck = 0.93 + fbm(u * 40, v * 40, 2, seed + 9) * 0.1;
+    return mix(base, vein, veinAmt).map((c) => c * speck);
+  });
+}
+const roughStone = (base, dark, scale, repeat, seed) =>
+  canvasTexture(256, (u, v) => {
+    const n = fbm(u * scale, v * scale, 5, seed, scale);
+    const pits = fbm(u * scale * 4, v * scale * 4, 2, seed + 3, scale * 4);
+    return mix(base, dark, clamp01((1 - n) * 0.9 + (pits > 0.72 ? 0.35 : 0))).map((c) => c * (0.9 + pits * 0.15));
+  }, repeat);
+
+// ================================================================== renderer / scene
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d0f14);
+scene.fog = new THREE.Fog(0x0d0f14, 16, 38);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.05, 100);
+camera.position.set(0, 9, 9);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+
+scene.add(new THREE.HemisphereLight(0xc8d4ff, 0x1a1410, 0.45));
+const moon = new THREE.DirectionalLight(0xb8c8ff, 1.25);
+moon.position.set(4, 12, 7);
+moon.castShadow = true;
+moon.shadow.mapSize.set(2048, 2048);
+Object.assign(moon.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9, near: 1, far: 40 });
+moon.shadow.bias = -0.0005;
+moon.shadow.normalBias = 0.02;
+scene.add(moon);
+const overhead = new THREE.SpotLight(0xffe2b8, 40, 30, 0.55, 0.6, 1.4);
+overhead.position.set(0, 11, 0);
+scene.add(overhead, overhead.target);
+
+// ================================================================== board
+const BOARD_Y = 0;
+const TABLE_Y = -0.42;
+const sqPos = (sq, y = BOARD_Y) => new V3((sq & 7) - 3.5, y, 3.5 - (sq >> 3));
+const lowEnv = (m) => ((m.envMapIntensity = 0.25), m);
+
+const floorTex = roughStone([70, 64, 58], [30, 27, 25], 8, 10, 11);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(30, 64),
+  lowEnv(new THREE.MeshStandardMaterial({ map: floorTex, bumpMap: floorTex, bumpScale: 2, roughness: 0.95 })));
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = TABLE_Y;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const frameTex = roughStone([118, 110, 98], [52, 47, 42], 6, 1, 23);
+const frame = new THREE.Mesh(new THREE.BoxGeometry(9.4, 0.4, 9.4),
+  lowEnv(new THREE.MeshStandardMaterial({ map: frameTex, bumpMap: frameTex, bumpScale: 3, roughness: 0.85 })));
+frame.position.y = TABLE_Y + 0.2;
+frame.castShadow = frame.receiveShadow = true;
+scene.add(frame);
+
+const marbleMats = {
+  light: [0, 1, 2, 3].map((i) => lowEnv(new THREE.MeshStandardMaterial({ map: marble([236, 230, 218], [150, 138, 124], 100 + i), roughness: 0.22 }))),
+  dark: [0, 1, 2, 3].map((i) => lowEnv(new THREE.MeshStandardMaterial({ map: marble([34, 44, 40], [128, 150, 136], 200 + i), roughness: 0.2 }))),
+};
+const squareGeo = new THREE.BoxGeometry(0.985, 0.1, 0.985);
+const squares = [];
+for (let sq = 0; sq < 64; sq++) {
+  const isLight = ((sq & 7) + (sq >> 3)) % 2 === 1;
+  const mats = isLight ? marbleMats.light : marbleMats.dark;
+  const m = new THREE.Mesh(squareGeo, mats[Math.floor(rand() * 4)]);
+  m.position.copy(sqPos(sq, BOARD_Y - 0.05));
+  m.rotation.y = Math.floor(rand() * 4) * (Math.PI / 2);
+  m.receiveShadow = true;
+  m.userData.sq = sq;
+  scene.add(m);
+  squares.push(m);
+}
+const grout = new THREE.Mesh(new THREE.BoxGeometry(8.04, 0.09, 8.04), new THREE.MeshStandardMaterial({ color: 0x1b1714, roughness: 1 }));
+grout.position.y = BOARD_Y - 0.055;
+scene.add(grout);
+
+function label(text) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#d8ae62';
+  g.font = 'bold 40px Georgia, serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(text, 32, 34);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.36), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+  mesh.rotation.x = -Math.PI / 2;
+  return mesh;
+}
+const labelGroup = new THREE.Group();
+scene.add(labelGroup);
+for (let i = 0; i < 8; i++)
+  for (const side of [-1, 1]) {
+    const f = label('abcdefgh'[i]);
+    f.position.set(i - 3.5, TABLE_Y + 0.401, side * 4.35);
+    const r = label(String(i + 1));
+    r.position.set(side * 4.35, TABLE_Y + 0.401, 3.5 - i);
+    labelGroup.add(f, r);
+  }
+const orientLabels = (towardWhite) => labelGroup.children.forEach((l) => (l.rotation.z = towardWhite ? 0 : Math.PI));
+
+// ================================================================== torches
+function glowTexture(stops) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  stops.forEach(([o, col]) => grd.addColorStop(o, col));
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const flameTex = glowTexture([[0, 'rgba(255,240,200,1)'], [0.25, 'rgba(255,170,60,0.9)'], [0.6, 'rgba(255,80,10,0.35)'], [1, 'rgba(255,40,0,0)']]);
+const softTex = glowTexture([[0, 'rgba(255,255,255,1)'], [0.4, 'rgba(255,255,255,0.5)'], [1, 'rgba(255,255,255,0)']]);
+
+const torches = [];
+const postMat = lowEnv(new THREE.MeshStandardMaterial({ map: frameTex, roughness: 0.9 }));
+const ironMat = new THREE.MeshStandardMaterial({ color: 0x2a2622, roughness: 0.6, metalness: 0.7 });
+for (const [x, z] of [[-5.6, -5.6], [5.6, -5.6], [-5.6, 5.6], [5.6, 5.6]]) {
+  const h = 2.4;
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.14, h, 12), postMat);
+  post.position.set(x, TABLE_Y + h / 2, z);
+  post.castShadow = true;
+  const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.1, 0.22, 16, 1, true), ironMat);
+  bowl.position.set(x, TABLE_Y + h + 0.08, z);
+  const fy = TABLE_Y + h + 0.42;
+  const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex, blending: THREE.AdditiveBlending, depthWrite: false }));
+  flame.position.set(x, fy, z);
+  const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex, color: 0xfff0c0, blending: THREE.AdditiveBlending, depthWrite: false }));
+  core.position.set(x, fy - 0.12, z);
+  const light = new THREE.PointLight(0xff8a3c, 14, 18, 1.5);
+  light.position.set(x, fy, z);
+  const N = 18, eg = new THREE.BufferGeometry(), seeds = [];
+  for (let i = 0; i < N; i++) seeds.push({ t: rand(), dx: (rand() - 0.5) * 0.3, dz: (rand() - 0.5) * 0.3, s: 0.5 + rand() });
+  eg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+  const embers = new THREE.Points(eg, new THREE.PointsMaterial({ map: softTex, color: 0xffa040, size: 0.07,
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  scene.add(post, bowl, flame, core, light, embers);
+  torches.push({ x, z, fy, flame, core, light, embers, seeds, phase: rand() * 10 });
+}
+function updateTorches(time, dt) {
+  for (const t of torches) {
+    const f = 1 + 0.14 * Math.sin(time * 7.1 + t.phase) + 0.09 * Math.sin(time * 13.7 + t.phase * 2) + 0.06 * (rand() - 0.5);
+    t.light.intensity = 14 * f;
+    t.flame.scale.set(0.75 * f, 1.0 * f + 0.1 * Math.sin(time * 9 + t.phase), 1);
+    t.core.scale.setScalar(0.3 * f);
+    const pos = t.embers.geometry.attributes.position;
+    t.seeds.forEach((s, i) => {
+      s.t += dt * 0.5 * s.s;
+      if (s.t > 1) { s.t = 0; s.dx = (rand() - 0.5) * 0.3; s.dz = (rand() - 0.5) * 0.3; }
+      pos.setXYZ(i, t.x + s.dx * (1 + s.t * 2) + Math.sin(time * 3 + i) * 0.05 * s.t, t.fy + s.t * 1.6, t.z + s.dz * (1 + s.t * 2));
+    });
+    pos.needsUpdate = true;
+  }
+}
+
+// ================================================================== armies (materials)
+// White army: white marble with gold accents. Black army: obsidian. Polished where armour would be.
+const stoneTex = canvasTexture(256, (u, v) => {
+  const n = fbm(u * 8, v * 8, 5, 41, 8);
+  const vein = Math.pow(1 - Math.abs(Math.sin(u * 2 * Math.PI * 3 + n * 6)), 14);
+  const g = 215 + n * 40 - vein * 55;
+  return [g, g, g];
+}, 1);
+// Chainmail relief (staggered rings) used as colour + bump on mail skirts.
+const chainTex = canvasTexture(128, (u, v) => {
+  const x = u * 16, y = v * 16, row = Math.floor(y);
+  const xx = x + (row % 2) * 0.5;
+  const fx = xx - Math.floor(xx) - 0.5, fy = y - row - 0.5;
+  const ring = Math.exp(-Math.pow((Math.hypot(fx, fy * 1.25) - 0.3) / 0.09, 2));
+  const g = 120 + ring * 135;
+  return [g, g, g];
+}, 4);
+const S = (o) => new THREE.MeshStandardMaterial(o);
+function makeArmy(base, accent, rough, metal, glow, { accentMetal = metal, accentRough = rough, env = 0.7, accentGlow = 0x000000 } = {}) {
+  return {
+    stone: S({ color: base, map: stoneTex, roughness: rough, metalness: metal, envMapIntensity: env }),
+    armor: S({ color: base, map: stoneTex, roughness: rough * 0.45, metalness: Math.min(1, metal + 0.05), envMapIntensity: env }),
+    trim: S({ color: accent, map: stoneTex, roughness: accentRough * 0.8, metalness: accentMetal, emissive: accentGlow, envMapIntensity: 1.4 }),
+    hair: S({ color: accent, map: stoneTex, roughness: accentRough * 1.2, metalness: accentMetal }),
+    leather: S({ color: accent, map: stoneTex, roughness: accentRough * 1.1, metalness: accentMetal }),
+    mail: S({ color: base, map: chainTex, bumpMap: chainTex, bumpScale: 2.5, roughness: rough * 0.8, metalness: metal, envMapIntensity: env }),
+    cloth: S({ color: base, map: stoneTex, roughness: Math.min(1, rough * 1.35), metalness: metal, side: THREE.DoubleSide }),
+    plinth: S({ color: base, map: stoneTex, roughness: rough * 0.6, metalness: metal, flatShading: true }),
+    base: S({ color: base, map: stoneTex, roughness: rough * 0.6, metalness: metal }),
+    horse: S({ color: base, map: stoneTex, roughness: rough * 0.8, metalness: metal }),
+    eye: S({ color: 0x0a0a0a, roughness: 1 }),
+    visor: S({ color: 0x050505, roughness: 1 }),
+    glow,
+  };
+}
+const ARMY = {
+  w: makeArmy(0xf3efe6, 0xe2b25a, 0.38, 0, 0xffe3a0, { accentMetal: 0.85, accentRough: 0.3, env: 0.8, accentGlow: 0x4a3008 }),   // white marble, gold accents
+  b: makeArmy(0x2e2e34, 0x1a1a1e, 0.3, 0.12, 0xff7a3a),
+};
+const STEEL = S({ color: 0xe8edf2, metalness: 0.85, roughness: 0.22, envMapIntensity: 1.5, emissive: 0x262a30 });
+const PETRIFIED = {
+  w: S({ color: 0x9d988f, map: stoneTex, roughness: 0.95 }),
+  b: S({ color: 0x4d4a48, map: stoneTex, roughness: 0.95 }),
+};
+const SHARD = {
+  w: S({ color: 0xc9c4ba, roughness: 0.8, flatShading: true }),
+  b: S({ color: 0x3e3c3d, roughness: 0.85, flatShading: true }),
+};
+
+// ================================================================== statue construction
+const lathe = (pts, seg = 24) => new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), seg);
+const cap = (r, len) => new THREE.CapsuleGeometry(r, len, 4, 12);
+const sph = (r, ...a) => new THREE.SphereGeometry(r, 16, 12, ...a);
+function add(geo, mat, parent, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  m.rotation.set(rx, ry, rz);
+  m.castShadow = m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+function joint(name, parent, x = 0, y = 0, z = 0) {
+  const g = new THREE.Group();
+  g.name = name;
+  g.position.set(x, y, z);
+  parent.add(g);
+  return g;
+}
+// Lathe with vertical folds that deepen toward the hem (robes, skirts).
+function folded(pts, folds = 10, amp = 0.012, seg = 48) {
+  const g = lathe(pts, seg);
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), r = Math.hypot(x, z);
+    if (r < 1e-4) continue;
+    const a = Math.atan2(z, x);
+    const k = 1 + (Math.sin(a * folds) * amp * (0.3 + Math.max(0, -y) * 2.2)) / Math.max(r, 0.05);
+    pos.setXYZ(i, x * k, y, z * k);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+const openHelm = (r, depth = 0.62) => sph(r, Math.PI + 0.62, Math.PI * 2 - 1.24, 0, Math.PI * depth);
+
+// Stepped octagonal plinth every piece stands on.
+// Pieces stand directly on the board (no base stand).
+const BASE_TOP = 0;
+function plinth() {}
+
+// Carved face for open-faced figures (eyes are shadowed sockets).
+function face(head, A, { beard = false, hairStyle = 'short' } = {}) {
+  add(sph(0.068), A.stone, head).scale.set(1, 1.14, 0.9);
+  add(sph(0.046), A.stone, head, 0.026, -0.042, 0).scale.set(0.95, 0.75, 1.05);              // jaw
+  add(new THREE.ConeGeometry(0.011, 0.034, 6), A.stone, head, 0.071, 0.0, 0, 0, 0, -Math.PI / 2 + 0.25);
+  add(new THREE.BoxGeometry(0.018, 0.011, 0.068), A.stone, head, 0.062, 0.024, 0);          // brow
+  for (const z of [-0.023, 0.023]) {
+    add(sph(0.009), A.eye, head, 0.058, 0.012, z);
+    add(sph(0.012), A.stone, head, 0.0, 0.0, z * 3.0).scale.set(0.6, 1.4, 0.5);
+  }
+  if (beard) {
+    const b = add(folded([[0, -0.12], [0.03, -0.1], [0.05, -0.04], [0.046, 0.01], [0, 0.02]], 9, 0.004, 16), A.hair, head, 0.04, -0.03, 0);
+    b.scale.set(0.8, 1, 1.15);
+    add(new THREE.TorusGeometry(0.03, 0.008, 6, 12, Math.PI), A.hair, head, 0.062, -0.03, 0, 0, Math.PI / 2, Math.PI); // moustache
+  }
+  if (hairStyle === 'long') {
+    add(sph(0.075, 0, Math.PI * 2, 0, Math.PI * 0.55), A.hair, head, -0.006, 0.01, 0).scale.set(1, 1.1, 1);
+    add(folded([[0, -0.26], [0.07, -0.25], [0.075, -0.1], [0.06, 0.0], [0, 0.02]], 14, 0.004, 24), A.hair, head, -0.045, -0.02, 0)
+      .scale.set(0.55, 1, 1.25);
+  } else if (hairStyle === 'short') {
+    add(sph(0.073, 0, Math.PI * 2, 0, Math.PI * 0.45), A.hair, head, -0.006, 0.012, 0);
+  }
+}
+
+// Closed great helm with an eye slit, breaths and a central ridge (front = +x).
+function greatHelm(head, A, tall = 1) {
+  add(sph(0.066), A.visor, head);
+  add(lathe([[0, -0.088], [0.064, -0.09], [0.079, -0.05], [0.083, 0.02], [0.075, 0.07], [0.046, 0.1], [0, 0.108]], 20), A.armor, head)
+    .scale.set(1.05, tall, 0.95);
+  add(new THREE.BoxGeometry(0.012, 0.012, 0.11), A.visor, head, 0.085, 0.012, 0);
+  add(new THREE.BoxGeometry(0.012, 0.15, 0.016), A.trim, head, 0.086, -0.005, 0);
+  for (const z of [-0.034, -0.018, 0.018, 0.034]) add(new THREE.BoxGeometry(0.01, 0.007, 0.007), A.visor, head, 0.083, -0.04, z);
+  add(new THREE.TorusGeometry(0.081, 0.006, 4, 24), A.trim, head, 0, -0.07, 0, Math.PI / 2).scale.set(1.04, 0.95, 1);
+}
+
+const SCALE = { p: 0.95, r: 1.24, n: 1.1, b: 1.2, q: 1.22, k: 1.3 };
+
+function humanoid(parent, A, o) {
+  const j = {};
+  const broad = o.broad || 1;
+  const hips = (j.hips = joint('hips', parent, 0, o.y0, 0));
+  hips.userData.y0 = o.y0;
+  add(new THREE.CylinderGeometry(0.098 * broad, 0.108 * broad, 0.08, 16), A.armor, hips);
+  add(new THREE.TorusGeometry(0.102 * broad, 0.012, 6, 24), A.trim, hips, 0, 0.035, 0, Math.PI / 2);
+  add(new THREE.BoxGeometry(0.03, 0.03, 0.03), A.trim, hips, 0.1 * broad, 0.035, 0);           // buckle
+  if (o.skirt) add(folded([[0, -o.skirt], [0.128 * broad, -o.skirt], [0.118 * broad, -o.skirt * 0.45], [0.104 * broad, 0.02], [0, 0.02]], 16, 0.004), A.mail, hips);
+  if (o.legs) {
+    for (const [s, z] of [['L', -0.062], ['R', 0.062]]) {
+      const leg = (j['leg' + s] = joint('leg' + s, hips, 0, -0.02, z * broad));
+      add(lathe([[0, -0.215], [0.036, -0.205], [0.05, -0.08], [0.047, -0.005], [0, 0.01]], 16), A.armor, leg);
+      const knee = (j['knee' + s] = joint('knee' + s, leg, 0, -0.22, 0));
+      add(sph(0.04), A.trim, knee, 0.012, 0, 0).scale.set(1.1, 0.9, 1);                    // poleyn
+      add(lathe([[0, -0.205], [0.03, -0.2], [0.042, -0.09], [0.037, -0.01], [0, 0]], 16), A.armor, knee);
+      add(new THREE.BoxGeometry(0.13, 0.035, 0.064), A.armor, knee, 0.03, -0.205, 0);       // sabaton
+    }
+  }
+  if (o.robe) add(folded(o.robe, 12, 0.014), A.cloth, hips);
+  // torso: sculpted breastplate (or robe), gorget, tabard
+  const torso = (j.torso = joint('torso', hips, 0, 0.03, 0));
+  const robe = o.chest === 'robe';
+  add(lathe([[0, 0], [0.098, 0], [0.112, 0.05], [0.104, 0.14], [0.132, 0.25], [0.128, 0.31], [0.07, 0.36], [0, 0.37]], 20), robe ? A.cloth : A.armor, torso)
+    .scale.set(0.78, 1, broad);
+  if (!robe) {
+    add(new THREE.BoxGeometry(0.012, 0.2, 0.012), A.trim, torso, 0.094, 0.18, 0);          // breastplate ridge
+    for (const y of [0.05, 0.09]) add(new THREE.TorusGeometry(0.108, 0.006, 4, 24), A.trim, torso, 0, y, 0, Math.PI / 2).scale.set(0.78, broad, 1);
+  } else {
+    add(new THREE.BoxGeometry(0.01, 0.34, 0.05), A.trim, torso, 0.085, 0.1, 0, 0, 0, 0.06);  // embroidered stole
+  }
+  if (o.tabard) {
+    add(new THREE.BoxGeometry(0.008, 0.26, 0.1), A.cloth, torso, 0.095, -0.1, 0, 0, 0, 0.1);
+    add(new THREE.BoxGeometry(0.01, 0.12, 0.018), A.trim, torso, 0.1, -0.08, 0, 0, 0, 0.1);
+    add(new THREE.BoxGeometry(0.01, 0.018, 0.06), A.trim, torso, 0.098, -0.05, 0, 0, 0, 0.1);
+  }
+  add(new THREE.CylinderGeometry(0.042, 0.06, 0.05, 14), A.armor, torso, 0, 0.37, 0);      // gorget
+  const head = (j.head = joint('head', torso, 0.005, 0.44, 0));
+  if (o.face) face(head, A, o.face);
+  if (o.helm) o.helm(head, A);
+  // arms
+  for (const s of ['R', 'L']) {
+    const z = (s === 'R' ? 1 : -1) * 0.155 * broad;
+    const sh = (j['shoulder' + s] = joint('shoulder' + s, torso, 0, 0.31, z));
+    add(sph(0.07, 0, Math.PI * 2, 0, Math.PI * 0.55), robe ? A.cloth : A.armor, sh, 0, 0.0, 0).scale.set(1.05, 0.72, 1.1);
+    if (!robe) add(sph(0.064, 0, Math.PI * 2, Math.PI * 0.35, Math.PI * 0.25), A.trim, sh, 0, -0.005, 0);
+    add(lathe([[0, -0.17], [0.03, -0.165], [0.038, -0.06], [0.037, 0], [0, 0.01]], 14), robe ? A.cloth : A.armor, sh);
+    const el = (j['elbow' + s] = joint('elbow' + s, sh, 0, -0.17, 0));
+    add(sph(0.036), A.trim, el);
+    add(lathe([[0, -0.15], [0.03, -0.145], [0.036, -0.03], [0.032, 0], [0, 0.005]], 14), robe ? A.cloth : A.armor, el);
+    const wr = (j['wrist' + s] = joint('wrist' + s, el, 0, -0.15, 0));
+    add(new THREE.BoxGeometry(0.05, 0.06, 0.045), A.armor, wr, 0, -0.01, 0);               // gauntlet
+  }
+  if (o.cape) {
+    const cape = (j.cape = joint('cape', torso, -0.08, 0.34, 0));
+    const w = 0.3 * broad;
+    const g = new THREE.PlaneGeometry(w, o.cape, 10, 12);
+    g.translate(0, -o.cape / 2, 0);
+    g.rotateY(Math.PI / 2);
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i), z = pos.getZ(i);
+      const depth = Math.min(1, -y / o.cape);
+      pos.setX(i, y * 0.12 + z * z * 3.5 * (1 - depth * 0.4) - Math.abs(Math.sin(z * 42)) * 0.014 * (0.3 + depth));
+      pos.setZ(i, z * (1 + depth * 0.35));
+    }
+    g.computeVertexNormals();
+    add(g, A.cloth, cape);
+    for (const zz of [-0.12, 0.12]) add(sph(0.022), A.trim, torso, 0.02, 0.33, zz * broad);  // clasps
+  }
+  return j;
+}
+
+function sword(j, A, { len = 0.3, width = 0.034, curved = false } = {}) {
+  const s = joint('sword', j.wristR, 0, -0.01, 0);
+  add(new THREE.CylinderGeometry(0.012, 0.012, 0.08, 8), A.leather, s);
+  add(sph(0.02), A.trim, s, 0, 0.05, 0);
+  add(new THREE.BoxGeometry(0.14, 0.018, 0.028), A.trim, s, 0, -0.048, 0);
+  for (const x of [-0.07, 0.07]) add(sph(0.014), A.trim, s, x, -0.048, 0);
+  const sh = new THREE.Shape();
+  if (curved) {
+    sh.moveTo(-width / 2, 0); sh.lineTo(width / 2, 0);
+    sh.quadraticCurveTo(width * 1.7, -len * 0.6, width * 1.6, -len);
+    sh.quadraticCurveTo(width * 0.4, -len * 0.55, -width / 2, 0);
+  } else {
+    sh.moveTo(-width / 2, 0); sh.lineTo(width / 2, 0);
+    sh.lineTo(width * 0.42, -len * 0.86); sh.lineTo(0, -len); sh.lineTo(-width * 0.42, -len * 0.86);
+    sh.closePath();
+  }
+  const g = new THREE.ExtrudeGeometry(sh, { depth: 0.006, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.004, bevelSegments: 1 });
+  g.translate(0, -0.056, -0.003);
+  add(g, STEEL, s);
+  joint('tip', s, curved ? width * 1.6 : 0, -0.056 - len, 0);
+  joint('hilt', s, 0, -0.07, 0);
+}
+// Heater shield on the left fist (local +x = up, -y = facing forward).
+function heaterShield(j, A, h = 0.26, w = 0.19, emblem = true) {
+  const g = joint('shield', j.wristL, -0.02, -0.02, 0);
+  const s = new THREE.Shape();
+  s.moveTo(-w / 2, h * 0.35); s.lineTo(w / 2, h * 0.35); s.lineTo(w / 2, 0);
+  s.quadraticCurveTo(w / 2, -h * 0.42, 0, -h * 0.65);
+  s.quadraticCurveTo(-w / 2, -h * 0.42, -w / 2, 0);
+  s.closePath();
+  const geo = new THREE.ExtrudeGeometry(s, { depth: 0.016, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.008, bevelSegments: 2 });
+  geo.translate(0, 0, -0.008);
+  geo.rotateX(-Math.PI / 2);
+  geo.rotateY(-Math.PI / 2);
+  add(geo, A.armor, g);
+  if (emblem) {
+    add(new THREE.BoxGeometry(h * 0.75, 0.01, 0.024), A.trim, g, -h * 0.12, -0.016, 0);
+    add(new THREE.BoxGeometry(0.024, 0.01, w * 0.62), A.trim, g, h * 0.12, -0.016, 0);
+  }
+}
+function towerShield(j, A) {
+  const g = joint('shield', j.wristL, -0.06, -0.02, 0);
+  add(new THREE.BoxGeometry(0.44, 0.024, 0.24), A.armor, g);
+  add(new THREE.BoxGeometry(0.46, 0.012, 0.024), A.trim, g, 0, -0.016, 0);
+  add(new THREE.BoxGeometry(0.024, 0.012, 0.26), A.trim, g, 0.08, -0.016, 0);
+  for (const z of [-0.12, 0.12]) add(new THREE.BoxGeometry(0.46, 0.03, 0.016), A.trim, g, 0, 0, z);
+  for (const x of [-0.18, 0.18]) for (const z of [-0.09, 0.09]) add(sph(0.012), A.trim, g, x, -0.014, z);
+}
+// Cleric's crook-topped staff, held upright in the left hand (local +x = up).
+function staff(j, A) {
+  const g = joint('staff', j.wristL, 0, -0.01, 0);
+  add(new THREE.CylinderGeometry(0.01, 0.012, 1.0, 10), A.trim, g, 0.06, 0, 0, 0, 0, Math.PI / 2);
+  add(sph(0.022), A.armor, g, 0.54, 0, 0);
+  add(new THREE.TorusGeometry(0.05, 0.011, 8, 20, Math.PI * 1.4), A.armor, g, 0.6, -0.03, 0, 0, 0, Math.PI * 0.85);
+}
+
+const HELMS = {
+  p(head, A) {   // foot soldier: brimmed war hat over a closed helm
+    greatHelm(head, A, 0.85);
+    add(new THREE.CylinderGeometry(0.118, 0.124, 0.012, 24), A.armor, head, 0, 0.035, 0);
+    add(sph(0.08, 0, Math.PI * 2, 0, Math.PI * 0.4), A.armor, head, 0, 0.03, 0);
+  },
+  r(head, A) {   // tower guard: tall great helm with a crenellated crown
+    greatHelm(head, A, 1.15);
+    add(new THREE.CylinderGeometry(0.075, 0.08, 0.05, 8), A.armor, head, 0, 0.11, 0);
+    for (let i = 0; i < 8; i += 2) {
+      const a = (i / 8) * Math.PI * 2;
+      add(new THREE.BoxGeometry(0.03, 0.035, 0.03), A.armor, head, Math.cos(a) * 0.066, 0.15, Math.sin(a) * 0.066, 0, -a, 0);
+    }
+  },
+  n(head, A) {   // cavalier: great helm with a swept crest
+    greatHelm(head, A, 1.0);
+    const crest = new THREE.Shape();
+    crest.moveTo(0.05, 0); crest.quadraticCurveTo(0.02, 0.09, -0.12, 0.06); crest.quadraticCurveTo(-0.04, 0.03, -0.06, -0.02);
+    crest.closePath();
+    const cg = new THREE.ExtrudeGeometry(crest, { depth: 0.014, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 1 });
+    cg.translate(0, 0, -0.007);
+    add(cg, A.trim, head, 0, 0.1, 0);
+  },
+  b(head, A) {   // cleric: hood and tall mitre
+    add(openHelm(0.088, 0.72), A.cloth, head, -0.008, 0.005, 0);
+    const m = add(lathe([[0, 0], [0.066, 0], [0.072, 0.06], [0.054, 0.15], [0, 0.21]], 20), A.armor, head, -0.005, 0.06, 0);
+    m.scale.set(0.74, 1, 1);
+    add(new THREE.TorusGeometry(0.067, 0.007, 6, 20), A.trim, head, -0.005, 0.066, 0, Math.PI / 2).scale.set(0.76, 1, 1);
+    add(new THREE.BoxGeometry(0.008, 0.13, 0.014), A.trim, head, 0.05, 0.13, 0, 0, 0, -0.28);
+    add(new THREE.BoxGeometry(0.008, 0.014, 0.05), A.trim, head, 0.052, 0.15, 0, 0, 0, -0.28);
+  },
+  q(head, A) {   // queen: circlet of spires over a veil
+    add(new THREE.TorusGeometry(0.073, 0.01, 6, 28), A.trim, head, -0.004, 0.06, 0, Math.PI / 2);
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2;
+      add(new THREE.ConeGeometry(0.011, i % 2 ? 0.05 : 0.08, 6), A.trim, head, Math.cos(a) * 0.071 - 0.004, 0.092, Math.sin(a) * 0.071);
+    }
+    add(openHelm(0.08, 0.6), A.cloth, head, -0.012, 0.0, 0).scale.set(1, 1.2, 1.05);
+  },
+  k(head, A) {   // king: great helm crowned, with a cross
+    greatHelm(head, A, 1.05);
+    add(new THREE.CylinderGeometry(0.086, 0.082, 0.045, 24, 1, true), A.trim, head, 0, 0.085, 0);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      add(new THREE.ConeGeometry(0.015, 0.06, 6), A.trim, head, Math.cos(a) * 0.082, 0.13, Math.sin(a) * 0.082);
+    }
+    add(new THREE.BoxGeometry(0.02, 0.1, 0.02), A.trim, head, 0, 0.17, 0);
+    add(new THREE.BoxGeometry(0.02, 0.02, 0.07), A.trim, head, 0, 0.19, 0);
+  },
+};
+
+const ROBE_B = [[0, -0.46], [0.205, -0.46], [0.185, -0.33], [0.14, -0.13], [0.112, 0.04], [0, 0.04]];
+const ROBE_Q = [[0, -0.46], [0.235, -0.46], [0.205, -0.36], [0.145, -0.17], [0.102, 0.0], [0.092, 0.04], [0, 0.04]];
+
+const PIECE_DEFS = {
+  p: { legs: true, y0: 0.46, helm: HELMS.p, skirt: 0.13, tabard: true, weapon: { len: 0.26 }, off: (j, A) => heaterShield(j, A, 0.22, 0.16, false) },
+  r: { legs: true, y0: 0.46, broad: 1.3, helm: HELMS.r, skirt: 0.2, cape: 0.62, weapon: { len: 0.42, width: 0.05 }, off: towerShield },
+  n: { rider: true, helm: HELMS.n, tabard: true, cape: 0.34, weapon: { len: 0.34 }, off: (j, A) => heaterShield(j, A, 0.2, 0.15, true) },
+  b: { robe: ROBE_B, chest: 'robe', y0: 0.46, helm: HELMS.b, face: { beard: true, hairStyle: 'none' },
+       weapon: { len: 0.3, width: 0.04, curved: true }, off: staff },
+  q: { robe: ROBE_Q, y0: 0.46, cape: 0.72, helm: HELMS.q, face: { hairStyle: 'long' }, weapon: { len: 0.4, width: 0.026 } },
+  k: { legs: true, y0: 0.46, broad: 1.15, helm: HELMS.k, skirt: 0.3, tabard: true, cape: 0.8,
+       weapon: { len: 0.38, width: 0.042 }, off: (j, A) => heaterShield(j, A, 0.28, 0.2, true) },
+};
+
+const HORSE_S = 1.45;
+function horse(fig, A) {
+  const j = {};
+  const pivot = (j.horse = joint('horse', fig, -0.15 * HORSE_S, 0, 0));       // rears up around the hind hooves
+  const hb = joint('horseBody', pivot, 0.15 * HORSE_S, 0, 0);
+  hb.scale.setScalar(HORSE_S);
+  add(cap(0.088, 0.26), A.horse, hb, 0, 0.33, 0, 0, 0, Math.PI / 2);
+  add(sph(0.09), A.horse, hb, 0.12, 0.34, 0).scale.set(1, 1.05, 0.95);                    // chest
+  add(sph(0.088), A.horse, hb, -0.13, 0.34, 0).scale.set(1.05, 1, 1);                     // haunch
+  // caparison: draped cloth with folds
+  const drape = folded([[0, -0.11], [0.115, -0.11], [0.105, -0.02], [0.094, 0.05], [0, 0.06]], 18, 0.006, 40);
+  add(drape, A.cloth, hb, -0.01, 0.38, 0).scale.set(1.6, 1, 1);
+  add(new THREE.TorusGeometry(0.11, 0.008, 4, 32), A.trim, hb, -0.01, 0.27, 0, Math.PI / 2).scale.set(1.6, 1, 1);
+  add(new THREE.BoxGeometry(0.12, 0.03, 0.15), A.leather, hb, -0.01, 0.445, 0);            // saddle
+  const neck = joint('hNeck', hb, 0.16, 0.37, 0);
+  add(cap(0.052, 0.13), A.horse, neck, 0.03, 0.07, 0, 0, 0, -0.55);
+  add(new THREE.BoxGeometry(0.03, 0.16, 0.02), A.hair, neck, -0.005, 0.1, 0, 0, 0, -0.55); // mane
+  const hh = joint('hHead', neck, 0.1, 0.16, 0);
+  add(cap(0.043, 0.1), A.horse, hh, 0.04, -0.02, 0, 0, 0, -1.95);
+  add(sph(0.034), A.horse, hh, 0.1, -0.035, 0).scale.set(1.1, 0.9, 0.95);                // muzzle
+  add(new THREE.BoxGeometry(0.11, 0.012, 0.078), A.armor, hh, 0.05, 0.0, 0, 0, 0, -0.38); // chanfron
+  for (const z of [-0.022, 0.022]) {
+    add(new THREE.ConeGeometry(0.012, 0.045, 6), A.horse, hh, -0.015, 0.05, z);
+    add(sph(0.008), A.eye, hh, 0.02, 0.012, z * 1.8);
+  }
+  for (const [n, x, z] of [['hFL', 0.13, -0.05], ['hFR', 0.13, 0.05], ['hBL', -0.13, -0.05], ['hBR', -0.13, 0.05]]) {
+    const l = (j[n] = joint(n, hb, x, 0.3, z));
+    add(lathe([[0, -0.26], [0.018, -0.25], [0.022, -0.15], [0.032, -0.04], [0.036, 0.02], [0, 0.03]], 12), A.horse, l);
+    add(new THREE.CylinderGeometry(0.026, 0.03, 0.03, 10), A.leather, l, 0, -0.27, 0);
+  }
+  add(folded([[0, -0.2], [0.03, -0.19], [0.03, -0.05], [0.02, 0.0], [0, 0.01]], 6, 0.004, 12), A.hair, hb, -0.23, 0.36, 0, 0, 0, -0.45); // tail
+  for (const z of [-0.1, 0.1]) {   // rider's legs (fixed, straddling)
+    add(cap(0.03, 0.09), A.armor, hb, 0.04, 0.43, z * 0.95, 0, 0, 0.98);
+    add(cap(0.027, 0.09), A.armor, hb, 0.09, 0.34, z * 1.0, 0, 0, -0.1);
+    add(new THREE.BoxGeometry(0.06, 0.02, 0.035), A.leather, hb, 0.1, 0.28, z);
+  }
+  return { j, mount: hb };
+}
+
+// Pose = { jointName: [rx, ry, rz] } plus optional "drop" (hips height offset).
+// Arm convention: rz swings forward (+) / back; sword blade continues the forearm.
+const IDLE_BASE = {
+  torso: [0, 0, 0], head: [0, 0, 0], hips: [0, 0, 0], drop: 0,
+  shoulderR: [-0.15, 0, 0.25], elbowR: [0, 0, 0.55], wristR: [0, 0, 0.5],
+  legL: [0, 0, 0], kneeL: [0, 0, 0], legR: [0, 0, 0], kneeR: [0, 0, 0],
+  horse: [0, 0, 0], hNeck: [0, 0, 0], cape: [0, 0, 0],
+  hFL: [0, 0, 0], hFR: [0, 0, 0], hBL: [0, 0, 0], hBR: [0, 0, 0],
+};
+const IDLE_OFF = {
+  shield: { shoulderL: [0.15, 0, 0.55], elbowL: [0, 0, 0.95], wristL: [0, 0, 0] },
+  orb: { shoulderL: [0.25, 0, 0.35], elbowL: [0, 0, 1.22], wristL: [0, 0, 0] },
+  none: { shoulderL: [0.3, 0, 0.1], elbowL: [0, 0, 0.5], wristL: [0, 0, 0] },
+};
+const offKind = (type) => (type === 'b' ? 'orb' : type === 'q' ? 'none' : 'shield');
+const idlePose = (type) => ({ ...IDLE_BASE, ...IDLE_OFF[offKind(type)] });
+
+const GUARD = {
+  torso: [0, 0.15, 0], shoulderR: [-0.2, 0, 0.6], elbowR: [0, 0, 0.9], wristR: [0, 0, 0.2],
+  legL: [0, 0, 0.28], kneeL: [0, 0, -0.25], legR: [0, 0, -0.22], kneeR: [0, 0, -0.3], drop: -0.02,
+  shoulderL: [0.12, 0, 0.8], elbowL: [0, 0, 0.75], hNeck: [0, 0, 0.15],
+};
+const STRIKES = {
+  overhead: {
+    wind: { shoulderR: [-0.25, 0, 2.9], elbowR: [0, 0, 0.5], wristR: [0, 0, 0.5], torso: [0, 0, 0.18],
+            legL: [0, 0, 0.2], kneeL: [0, 0, -0.2], legR: [0, 0, -0.25], kneeR: [0, 0, -0.2], horse: [0, 0, 0.3] },
+    hit: { shoulderR: [-0.1, 0, 1.25], elbowR: [0, 0, 0.15], wristR: [0, 0, 0.3], torso: [0, 0, -0.3],
+           legL: [0, 0, 0.5], kneeL: [0, 0, -0.45], legR: [0, 0, -0.35], kneeR: [0, 0, -0.15], drop: -0.04, horse: [0, 0, -0.04] },
+    parry: { shoulderR: [-0.45, 0, 2.2], elbowR: [0, 0, 0.7], wristR: [0, 0, -0.9], torso: [0, 0, 0.12] },
+    shield: { shoulderL: [0.1, 0, 1.5], elbowL: [0, 0, 0.55], torso: [0, 0.2, 0.12] },
+  },
+  side: {
+    wind: { shoulderR: [-0.1, -1.2, 1.5], elbowR: [0, 0, 0.35], wristR: [0, 0, 0.1], torso: [0, -0.55, 0.05], horse: [0, 0, 0.12] },
+    hit: { shoulderR: [-0.1, 1.0, 1.5], elbowR: [0, 0, 0.15], wristR: [0, 0, 0.1], torso: [0, 0.5, -0.12],
+           legL: [0, 0, 0.4], kneeL: [0, 0, -0.4], drop: -0.03, horse: [0, 0, 0] },
+    parry: { shoulderR: [-0.4, 0, 0.95], elbowR: [0, 0, 1.2], wristR: [0, 0, 0.85], torso: [0, -0.25, 0] },
+    shield: { shoulderL: [0.05, 0, 1.05], elbowL: [0, 0, 0.45], torso: [0, 0.35, 0.05] },
+  },
+  thrust: {
+    wind: { shoulderR: [-0.2, 0, 0.85], elbowR: [0, 0, 1.7], wristR: [0, 0, -0.95], torso: [0, -0.35, 0.1],
+            legR: [0, 0, -0.3], kneeR: [0, 0, -0.3], horse: [0, 0, 0.1] },
+    hit: { shoulderR: [-0.05, 0, 1.55], elbowR: [0, 0, 0.05], wristR: [0, 0, 0], torso: [0, 0.2, -0.25],
+           legL: [0, 0, 0.65], kneeL: [0, 0, -0.6], legR: [0, 0, -0.45], kneeR: [0, 0, -0.1], drop: -0.06, horse: [0, 0, -0.03] },
+    parry: { shoulderR: [-0.25, 0, 0.7], elbowR: [0, 0, 0.55], wristR: [0, 0, -0.15], torso: [0, 0.35, 0.1] },
+    shield: { shoulderL: [0.05, 0, 1.0], elbowL: [0, 0, 0.5], torso: [0, 0.3, 0.05] },
+  },
+};
+const HIT_REACT = { torso: [0, 0.3, 0.55], head: [0, 0, 0.45], shoulderR: [-0.7, 0, 0.3], elbowR: [0, 0, 0.2], wristR: [0, 0, 0.2],
+  shoulderL: [0.7, 0, 0.4], elbowL: [0, 0, 0.3], legL: [0, 0, -0.3], legR: [0, 0, 0.2], horse: [0, 0, 0.35], hNeck: [0, 0, 0.5] };
+const KNEEL = { drop: -0.19, legL: [0, 0, 1.5], kneeL: [0, 0, -1.5], legR: [0, 0, -0.15], kneeR: [0, 0, -1.4],
+  torso: [0, 0, -0.4], head: [0, 0, -0.45], shoulderR: [-0.1, 0, 0.15], elbowR: [0, 0, 0.1], wristR: [0, 0, 0.9],
+  shoulderL: [0.1, 0, 0.1], elbowL: [0, 0, 0.2], horse: [0, 0, -0.1], hNeck: [0, 0, -0.6], hFL: [0, 0, 0.9], hFR: [0, 0, 0.9] };
+const VICTORY = { shoulderR: [-0.35, 0, 3.0], elbowR: [0, 0, 0.15], wristR: [0, 0, 0.2], torso: [0, 0, 0.12], head: [0, 0, 0.3],
+  horse: [0, 0, 0.38], hFL: [0, 0, 0.9], hFR: [0, 0, 0.7], hNeck: [0, 0, 0.3] };
+
+function applyPose(j, pose) {
+  for (const [k, v] of Object.entries(pose)) {
+    if (k === 'drop') { if (j.hips) j.hips.position.y = j.hips.userData.y0 + v; continue; }
+    if (k === 'lean') continue;
+    if (j[k]) j[k].rotation.set(v[0], v[1], v[2]);
+  }
+}
+
+// Whole-figure lean (used for imported models, which have no skeleton): + leans back, - lunges forward.
+GUARD.lean = 0.04;
+for (const s of Object.values(STRIKES)) { s.wind.lean = 0.22; s.hit.lean = -0.32; s.parry.lean = 0.12; s.shield.lean = 0.14; }
+HIT_REACT.lean = 0.38;
+KNEEL.lean = -0.55;
+VICTORY.lean = 0.16;
+IDLE_BASE.lean = 0;
+
+// ================================================================== custom models
+// Two ways to use your own pieces:
+//  * the in-game "Piece models" window: pick the folder with your .fbx/.glb/.gltf files and their textures;
+//    everything is stored in this browser (IndexedDB);
+//  * files placed in models/ and listed in models/manifest.json (served by Docker).
+// Imported models are rigid statues: they lean, lunge, hop, kneel and crumble but have no skeleton.
+const models = {};                                   // type -> Object3D used to build that piece
+const modelCfg = { keepMaterials: true, per: {} };  // per[type] = { file, part, yaw, tilt, height, error }
+const MODEL_HEIGHT = { p: 0.85, r: 1.2, n: 1.2, b: 1.35, q: 1.4, k: 1.5 };
+const PIECE_NAMES = { k: 'King', q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight', p: 'Pawn' };
+const MODEL_EXT = /\.(fbx|glb|gltf)$/i;
+const ASSET_EXT = /\.(fbx|glb|gltf|bin|jpe?g|png|tga|bmp|webp)$/i;
+const cfgFor = (type) => (modelCfg.per[type] ||= { file: '', part: '', yaw: 90, tilt: 0, height: 1 });
+
+// Library of user files (lower-case basename -> { name, blob, url }); textures are resolved through it.
+const lib = new Map();
+const manifestFiles = new Set();
+const baseName = (u) => decodeURIComponent(String(u).split('?')[0].split(/[\\/]/).pop() || '').toLowerCase();
+const manager = new THREE.LoadingManager();
+manager.setURLModifier((url) => (lib.get(baseName(url)) || {}).url || url);
+let loaders = null;
+async function getLoaders() {
+  if (!loaders) {
+    const [{ GLTFLoader }, { FBXLoader }, { TGALoader }] = await Promise.all([
+      import('three/addons/loaders/GLTFLoader.js'), import('three/addons/loaders/FBXLoader.js'), import('three/addons/loaders/TGALoader.js')]);
+    manager.addHandler(/\.tga$/i, new TGALoader(manager));
+    loaders = { gltf: new GLTFLoader(manager), fbx: new FBXLoader(manager) };
+  }
+  return loaders;
+}
+const sceneCache = {};
+function sceneFor(name) {
+  if (!sceneCache[name]) {
+    const f = lib.get(name.toLowerCase());
+    const url = f ? f.url : 'models/' + name;
+    sceneCache[name] = getLoaders().then((L) => (/\.fbx$/i.test(name) ? L.fbx.loadAsync(url)
+      : L.gltf.loadAsync(url).then((g) => { g.scene.animations = g.animations || []; return g.scene; })));
+    sceneCache[name].catch(() => delete sceneCache[name]);
+  }
+  return sceneCache[name];
+}
+// Named objects inside a file that contain meshes (a whole chess set in one file lists each piece here).
+function partsOf(root) {
+  const out = [];
+  root.traverse((o) => {
+    if (o === root || !o.name) return;
+    let depth = 0;
+    for (let p = o.parent; p && p !== root; p = p.parent) depth++;
+    if (depth > 2) return;
+    let meshes = 0;
+    o.traverse((c) => { if (c.isMesh) meshes++; });
+    if (meshes && !out.includes(o.name)) out.push(o.name);
+  });
+  return out;
+}
+function extractPart(root, part) {
+  const src = part ? root.getObjectByName(part) : null;
+  if (!src) return SkeletonUtils.clone(root);
+  root.updateMatrixWorld(true);
+  let c;
+  try { c = SkeletonUtils.clone(src); } catch { c = src.clone(true); }
+  src.matrixWorld.decompose(c.position, c.quaternion, c.scale);   // keep the file's units / up-axis fix
+  return c;
+}
+
+// ---- persistence (IndexedDB: "files" = user assets, "pieces" = per-piece settings)
+let dbPromise = null;
+function db() {
+  return (dbPromise ||= new Promise((res, rej) => {
+    const r = indexedDB.open('living-stone-chess', 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore('files'); r.result.createObjectStore('pieces'); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  }));
+}
+async function dbPut(store, key, val) {
+  try {
+    const d = await db();
+    await new Promise((res, rej) => { const tx = d.transaction(store, 'readwrite'); tx.objectStore(store).put(val, key); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+  } catch (e) { console.warn('Could not save to browser storage:', e); }
+}
+async function dbClear() {
+  try {
+    const d = await db();
+    await new Promise((res, rej) => { const tx = d.transaction(['files', 'pieces'], 'readwrite'); tx.objectStore('files').clear(); tx.objectStore('pieces').clear(); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+  } catch (e) { console.warn(e); }
+}
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('storage timeout')), ms))]);
+async function dbAll(store) {
+  try {
+    const d = await withTimeout(db(), 2500);
+    return await withTimeout(new Promise((res, rej) => {
+      const tx = d.transaction(store), st = tx.objectStore(store), keys = st.getAllKeys(), vals = st.getAll();
+      tx.oncomplete = () => res(keys.result.map((k, i) => [k, vals.result[i]]));
+      tx.onerror = () => rej(tx.error);
+    }), 2500);
+  } catch (e) { console.info('Browser storage unavailable:', e.message); return []; }
+}
+function addToLib(name, blob) {
+  const key = name.toLowerCase();
+  const old = lib.get(key);
+  if (old) URL.revokeObjectURL(old.url);
+  lib.set(key, { name, blob, url: URL.createObjectURL(blob) });
+  delete sceneCache[name];
+}
+const saveCfg = (type) => { const { error, clipInfo, ...c } = cfgFor(type); return dbPut('pieces', type, c); };
+
+// Load the model for one piece type and rebuild the board with it.
+async function applyPiece(type, save = true) {
+  const c = cfgFor(type);
+  delete models[type];
+  c.error = '';
+  if (c.file) {
+    try {
+      const root = await sceneFor(c.file);
+      models[type] = extractPart(root, c.part);
+      modelClips[type] = root.animations || [];
+      c.clipInfo = summariseClips(modelClips[type], type);
+      console.info(`Model for ${PIECE_NAMES[type]}: ${c.file}${c.part ? ' / ' + c.part : ''} — ${c.clipInfo}`);
+    }
+    catch (e) { c.error = (e && e.message) || String(e); console.warn(`Model for ${PIECE_NAMES[type]} failed:`, e); }
+  }
+  if (save) await saveCfg(type);
+  delete prototypes[type + 'w'];
+  delete prototypes[type + 'b'];
+  if (typeof state !== 'undefined' && state && !busy) { rebuildPieces(); refreshOverlay(); }
+}
+
+async function loadModels() {
+  // 1) models/manifest.json (Docker / any web server)
+  if (location.protocol !== 'file:') {
+    try {
+      const r = await fetch('models/manifest.json', { cache: 'no-cache' });
+      if (r.ok) {
+        const m = await r.json();
+        if (m.keepMaterials !== undefined) modelCfg.keepMaterials = !!m.keepMaterials;
+        for (const [type, entry] of Object.entries(m.pieces || {})) {
+          const e = typeof entry === 'string' ? { file: entry } : entry;
+          Object.assign(cfgFor(type), {
+            file: e.file, part: e.part || '', tilt: e.tilt ?? m.tilt ?? 0, height: e.height ?? (m.heightScale || {})[type] ?? 1,
+            fire: e.fire, clipMap: e.clipMap,
+            yaw: e.yaw ?? (m.yaw ?? 90) + ((m.yawPer || {})[type] ?? 0),
+          });
+          manifestFiles.add(e.file);
+          const ms = settingsFor(modelKey(e.file, e.part));
+          if (e.fire !== undefined && ms.fire === undefined) ms.fire = e.fire;
+          if (e.clipMap) ms.clipMap = { ...e.clipMap, ...ms.clipMap };
+          if (e.flap) Object.assign(ms.flap, e.flap === true ? { on: true } : e.flap);
+          if (e.hover !== undefined) ms.hover = e.hover;
+          if (e.mouth && !ms.mouth) ms.mouth = e.mouth;
+        }
+      }
+    } catch { /* no manifest */ }
+  }
+  // 2) files and settings saved from the Piece models window (these win)
+  for (const [name, blob] of await dbAll('files')) addToLib(name, blob);
+  for (const [key, val] of await dbAll('pieces')) {
+    if (key === '_settings') modelCfg.keepMaterials = !!val.keepMaterials;
+    else if (String(key).startsWith('model:')) modelSettings[key.slice(6)] = val;
+    else Object.assign(cfgFor(key), val);
+  }
+  await Promise.all(Object.keys(modelCfg.per).map((t) => applyPiece(t, false)));
+}
+
+// Black army shading when a model keeps its own materials.
+const darkened = new Map();
+function darkenMaterial(m) {
+  if (!darkened.has(m)) {
+    const d = m.clone();
+    if (d.color) d.color.multiplyScalar(0.22);
+    if ('shininess' in d) d.shininess = Math.max(d.shininess, 40);
+    darkened.set(m, d);
+  }
+  return darkened.get(m);
+}
+const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
+function buildModelPiece(type, color) {
+  const A = ARMY[color], c = cfgFor(type);
+  const root = new THREE.Group();
+  const body = joint('body', root);
+  body.rotation.order = 'YZX';
+  plinth(body, A);
+  const fig = joint('fig', body, 0, BASE_TOP, 0);
+  const m = SkeletonUtils.clone(models[type]);
+  const yawG = new THREE.Group(), tiltG = new THREE.Group(), holder = new THREE.Group();
+  yawG.rotation.y = (c.yaw * Math.PI) / 180;     // models usually face +z; pieces here face +x
+  tiltG.rotation.x = (c.tilt * Math.PI) / 180;   // stand up models exported lying down
+  tiltG.name = 'modelRoot';
+  tiltG.add(m); yawG.add(tiltG); holder.add(yawG);
+  holder.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(holder), size = box.getSize(new V3()), ctr = box.getCenter(new V3());
+  const s = (MODEL_HEIGHT[type] * c.height) / (size.y || 1);
+  holder.scale.setScalar(s);
+  holder.position.set(-ctr.x * s, -box.min.y * s, -ctr.z * s);
+  m.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = o.receiveShadow = true;
+    if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
+  });
+  fig.add(holder);
+  {
+    const key = pieceModelKey(type);
+    modelBones[key] = analyzeModel(m).wings.filter((o) => !o.isMesh).length;
+    applyTeam(m, color, key);                    // White / Black side look chosen in the Studio
+    addBadge(fig, color, key, MODEL_HEIGHT[type] * c.height);
+    applyBend(holder, key);
+  }
+  const h = MODEL_HEIGHT[type] * c.height;
+  const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, h + 0.1, 12), HIT_MAT);
+  hit.name = 'hitbox';
+  hit.position.y = h / 2;
+  fig.add(hit);
+  joint('tip', fig, 0.34, h * 0.62, 0);   // virtual blade for trails and sparks
+  joint('hilt', fig, 0.12, h * 0.55, 0);
+  return root;
+}
+
+// ---- the "Piece models" window
+const mUI = {
+  modal: document.getElementById('models'), rows: document.getElementById('mRows'), lib: document.getElementById('mLib'),
+  keep: document.getElementById('mKeep'), folder: document.getElementById('mFolder'), files: document.getElementById('mFiles'),
+};
+function modelFileNames() {
+  const names = new Set(manifestFiles);
+  for (const f of lib.values()) if (MODEL_EXT.test(f.name)) names.add(f.name);
+  return [...names].sort();
+}
+const opt = (value, text, sel) => `<option value="${String(value).replace(/"/g, '&quot;')}"${sel ? ' selected' : ''}>${text}</option>`;
+const esc = (t) => String(t).replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[ch]);
+async function renderModelsUI() {
+  const files = modelFileNames();
+  const textures = [...lib.values()].filter((f) => !MODEL_EXT.test(f.name)).length;
+  mUI.lib.textContent = files.length
+    ? `${files.length} model file(s)${textures ? ` and ${textures} texture(s)` : ''} available.`
+    : 'No model files yet — choose your folder above.';
+  mUI.keep.checked = modelCfg.keepMaterials;
+  mUI.rows.innerHTML = '';
+  for (const type of ['k', 'q', 'r', 'b', 'n', 'p']) {
+    const c = cfgFor(type);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="pname">${PIECE_NAMES[type]}</td>
+      <td><select data-k="file">${opt('', 'Built-in statue', !c.file)}${files.map((f) => opt(f, esc(f), f === c.file)).join('')}</select></td>
+      <td><select data-k="part">${opt('', 'Whole file', true)}</select></td>
+      <td><select data-k="yaw">${[0, 90, 180, 270].map((d) => opt(d, d + '°', +c.yaw === d)).join('')}</select></td>
+      <td><select data-k="tilt">${[[0, 'As is'], [-90, 'Stand up ↑'], [90, 'Stand up ↓'], [180, 'Flip']].map(([v, t]) => opt(v, t, +c.tilt === v)).join('')}</select></td>
+      <td><input data-k="height" type="range" min="0.5" max="1.6" step="0.05" value="${c.height}"></td>
+      <td><input data-k="fire" type="checkbox" title="Breathes fire instead of using a sword" ${(c.fire ?? /dragon|drake|wyvern/i.test((c.file || '') + ' ' + (c.part || ''))) ? 'checked' : ''} ${c.file ? '' : 'disabled'}></td>
+      <td class="merr">${c.error ? '⚠ ' + esc(c.error) : c.file ? `<span class="minfo">${esc(c.clipInfo || '')}</span>` : ''}</td>`;
+    mUI.rows.appendChild(tr);
+    const partSel = tr.querySelector('[data-k="part"]');
+    if (c.file) {
+      sceneFor(c.file).then((root) => {
+        const parts = partsOf(root);
+        partSel.innerHTML = opt('', 'Whole file', !c.part) + parts.map((p) => opt(p, esc(p), p === c.part)).join('');
+      }).catch(() => {});
+    } else partSel.disabled = true;
+    tr.querySelectorAll('[data-k]').forEach((el) => {
+      el.addEventListener(el.type === 'range' ? 'change' : 'input', async () => {
+        const k = el.dataset.k;
+        c[k] = k === 'file' || k === 'part' ? el.value : k === 'fire' ? el.checked : +el.value;
+        if (k === 'file') { c.part = ''; delete c.fire; }
+        tr.querySelector('.merr').textContent = 'Loading…';
+        await applyPiece(type);
+        if (k === 'file' || c.error) renderModelsUI();
+        else tr.querySelector('.merr').textContent = '';
+      });
+    });
+  }
+}
+async function importFiles(fileList) {
+  const picked = [...fileList].filter((f) => ASSET_EXT.test(f.name));
+  for (const f of picked) {
+    addToLib(f.name, f);
+    await dbPut('files', f.name, f);
+  }
+  const skipped = fileList.length - picked.length;
+  await renderModelsUI();
+  if (skipped) mUI.lib.textContent += ` (${skipped} other file(s) such as .blend were skipped — export FBX or GLB from Blender.)`;
+}
+mUI.folder.addEventListener('change', () => importFiles(mUI.folder.files));
+mUI.files.addEventListener('change', () => importFiles(mUI.files.files));
+mUI.keep.addEventListener('change', async () => {
+  modelCfg.keepMaterials = mUI.keep.checked;
+  await dbPut('pieces', '_settings', { keepMaterials: modelCfg.keepMaterials });
+  for (const t of Object.keys(PIECE_NAMES)) { delete prototypes[t + 'w']; delete prototypes[t + 'b']; }
+  if (state && !busy) rebuildPieces();
+});
+document.getElementById('mClear').addEventListener('click', async () => {
+  if (!confirm('Remove all custom models and settings stored in this browser?')) return;
+  await dbClear();
+  for (const f of lib.values()) URL.revokeObjectURL(f.url);
+  lib.clear();
+  for (const t of Object.keys(PIECE_NAMES)) { modelCfg.per[t] = undefined; delete modelCfg.per[t]; }
+  modelCfg.keepMaterials = false;
+  for (const k of Object.keys(sceneCache)) delete sceneCache[k];
+  await loadModels();                              // the models/ folder (if any) still applies
+  for (const t of Object.keys(PIECE_NAMES)) await applyPiece(t, false);
+  renderModelsUI();
+});
+document.getElementById('modelsBtn').addEventListener('click', () => { renderModelsUI(); mUI.modal.style.display = 'grid'; });
+document.getElementById('mDone').addEventListener('click', () => (mUI.modal.style.display = 'none'));
+
+const prototypes = {};
+function buildPiece(type, color) {
+  if (models[type]) return buildModelPiece(type, color);
+  const A = ARMY[color], def = PIECE_DEFS[type];
+  const root = new THREE.Group();
+  const body = joint('body', root);
+  body.rotation.order = 'YZX';
+  plinth(body, A);
+  const fig = joint('fig', body, 0, BASE_TOP, 0);
+  fig.scale.setScalar(SCALE[type]);
+  let j;
+  if (def.rider) {
+    const h = horse(fig, A);
+    const mount = joint('mount', h.mount, -0.02, 0, 0);
+    mount.scale.setScalar(1 / HORSE_S);
+    const rj = humanoid(mount, A, { ...def, y0: 0.45 * HORSE_S, legs: false });
+    j = { ...h.j, ...rj };
+  } else {
+    j = humanoid(fig, A, def);
+  }
+  sword(j, A, def.weapon);
+  if (def.off) def.off(j, A);
+  applyPose(j, idlePose(type));
+  return root;
+}
+const JOINTS = ['body', 'fig', 'hips', 'torso', 'head', 'shoulderR', 'elbowR', 'wristR', 'shoulderL', 'elbowL', 'wristL',
+  'legL', 'kneeL', 'legR', 'kneeR', 'cape', 'horse', 'hNeck', 'hFL', 'hFR', 'hBL', 'hBR', 'tip', 'hilt'];
+
+const defaultYaw = (color) => (color === 'w' ? Math.PI / 2 : -Math.PI / 2); // face the enemy
+function makePiece(type, color) {
+  const key = type + color;
+  if (!prototypes[key]) prototypes[key] = buildPiece(type, color);
+  const p = models[type] ? SkeletonUtils.clone(prototypes[key]) : prototypes[key].clone();
+  const j = {};
+  for (const n of JOINTS) { const o = p.getObjectByName(n); if (o) j[n] = o; }
+  if (j.hips) j.hips.userData.y0 = prototypes[key].getObjectByName('hips').userData.y0;
+  p.userData = { type, color, j, body: j.body, phase: rand() * 10, rigid: !!models[type] };
+  j.body.rotation.y = defaultYaw(color);
+  if (models[type] && (modelClips[type] || []).length) {
+    p.userData.clips = modelClips[type];
+    p.userData.mixer = new THREE.AnimationMixer(p.getObjectByName('modelRoot'));
+    mixers.add(p.userData.mixer);
+    playClip(p, 'idle', { loop: true, fade: 0 });
+    p.userData.mixer.update(rand() * 2);          // desynchronise idles
+  }
+  if (models[type]) {
+    p.userData.modelKey = pieceModelKey(type);
+    setupProcedural(p, p.getObjectByName('modelRoot'), p.userData.modelKey);
+    procPieces.add(p);
+  }
+  return p;
+}
+function petrify(p) {
+  procPieces.delete(p);
+  delete p.userData.proc;
+  if (p.userData.mixer) { p.userData.mixer.update(0); p.userData.mixer.timeScale = 0; }
+  p.traverse((o) => { if (o.isMesh) o.material = PETRIFIED[p.userData.color]; if (o.isSprite) o.visible = false; });
+}
+
+// ================================================================== highlights
+const overlay = new THREE.Group();
+scene.add(overlay);
+const planeGeo = new THREE.PlaneGeometry(1, 1);
+const dotGeo = new THREE.CircleGeometry(0.15, 32);
+const ringGeo = new THREE.RingGeometry(0.38, 0.47, 40);
+const ovMat = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
+const MAT = {
+  last: ovMat(0xf2b84e, 0.32), select: ovMat(0x7fe07f, 0.45), move: ovMat(0x46c25a, 0.75),
+  capture: ovMat(0xe0503c, 0.8), check: ovMat(0xff2a1a, 0.55), hover: ovMat(0xffffff, 0.14),
+};
+function addOverlay(sq, geo, mat, lift = 0.003) {
+  const m = new THREE.Mesh(geo, mat);
+  m.rotation.x = -Math.PI / 2;
+  m.position.copy(sqPos(sq, BOARD_Y + lift));
+  overlay.add(m);
+}
+
+// ================================================================== virtual clock + tweens (supports slow motion)
+let clock = 0, timeScale = 1;
+const tweens = [];
+function tween(dur, update) {
+  return new Promise((resolve) => tweens.push({ t0: clock, dur, update, resolve }));
+}
+const wait = (ms) => tween(ms, () => {});
+const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+const easeIn = (t) => t * t * t;
+
+function poseTo(p, pose, dur, ez = ease) {
+  const j = p.userData.j, tracks = [];
+  for (const [k, v] of Object.entries(pose)) {
+    if (k === 'lean' || (k === 'drop' && p.userData.rigid)) {
+      if (!p.userData.rigid) continue;            // imported models: tilt / sink the whole figure
+      const o = j.fig, f = k === 'lean' ? o.rotation.z : o.position.y, to = k === 'lean' ? v : BASE_TOP + v * 0.5;
+      tracks.push((e) => { if (k === 'lean') o.rotation.z = f + (to - f) * e; else o.position.y = f + (to - f) * e; });
+      continue;
+    }
+    if (k === 'drop') {
+      if (!j.hips || p.userData.type === 'n') continue;
+      const from = j.hips.position.y, to = j.hips.userData.y0 + v;
+      tracks.push((e) => (j.hips.position.y = from + (to - from) * e));
+      continue;
+    }
+    const o = j[k];
+    if (!o) continue;
+    const f = [o.rotation.x, o.rotation.y, o.rotation.z];
+    tracks.push((e) => o.rotation.set(f[0] + (v[0] - f[0]) * e, f[1] + (v[1] - f[1]) * e, f[2] + (v[2] - f[2]) * e));
+  }
+  return tween(dur, (t) => { const e = ez(t); for (const tr of tracks) tr(e); });
+}
+const toIdle = (p, dur = 260) => { if (p.userData.mixer) playClip(p, 'idle', { loop: true }); return poseTo(p, idlePose(p.userData.type), dur); };
+const toGuard = (p, dur = 260) => { if (p.userData.mixer) playClip(p, 'idle', { loop: true }); return poseTo(p, { ...idlePose(p.userData.type), ...GUARD }, dur); };
+
+// ================================================================== audio (synthesised)
+let actx = null, noiseBuf = null;
+function audio() { return ui.sound.checked ? audioCtx() : null; }
+function audioCtx() {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    if (!noiseBuf) {
+      noiseBuf = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = rand() * 2 - 1;
+    }
+    return actx;
+  } catch { return null; }
+}
+function noise(a, t, dur, type, freq, gain, q = 1) {
+  const src = a.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+  const f = a.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+  const g = a.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f).connect(g).connect(a.destination);
+  src.start(t, rand() * 0.5); src.stop(t + dur + 0.05);
+  return f;
+}
+const sfx = {
+  clang(power = 1) {
+    const a = audio(); if (!a) return;
+    const t = a.currentTime;
+    for (const f of [1180, 1720, 2470, 3290, 4510]) {
+      const o = a.createOscillator(); o.frequency.value = f * (0.96 + rand() * 0.08);
+      const g = a.createGain(); g.gain.setValueAtTime(0.12 * power / (1 + f / 2500), t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25 + 900 / f);
+      o.connect(g).connect(a.destination); o.start(t); o.stop(t + 1.2);
+    }
+    noise(a, t, 0.06, 'highpass', 2500, 0.5 * power);
+  },
+  thunk() {
+    const a = audio(); if (!a) return;
+    const t = a.currentTime;
+    const o = a.createOscillator(); o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(60, t + 0.18);
+    const g = a.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + 0.3);
+    noise(a, t, 0.12, 'lowpass', 900, 0.4);
+    sfx.clang(0.25);
+  },
+  whoosh(dur = 0.22) {
+    const a = audio(); if (!a) return;
+    const t = a.currentTime;
+    const f = noise(a, t, dur, 'bandpass', 500, 0.35, 2.5);
+    f.frequency.setValueAtTime(400, t); f.frequency.exponentialRampToValueAtTime(1800, t + dur * 0.8);
+  },
+  crumble() {
+    const a = audio(); if (!a) return;
+    const t = a.currentTime;
+    noise(a, t, 1.1, 'lowpass', 700, 0.6);
+    for (let i = 0; i < 9; i++) noise(a, t + rand() * 0.6, 0.05, 'bandpass', 1500 + rand() * 2500, 0.35, 3);
+  },
+  fire(dur = 1) {
+    const a = audio(); if (!a) return;
+    const t = a.currentTime;
+    const f = noise(a, t, dur + 0.35, 'lowpass', 500, 0.8, 0.7);
+    f.frequency.setValueAtTime(350, t); f.frequency.linearRampToValueAtTime(1700, t + 0.25);
+    noise(a, t, dur, 'bandpass', 220, 0.6, 1.2);
+    const o = a.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.9);
+    const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520;
+    const g = a.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.3, t + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.0);
+    o.connect(lp).connect(g).connect(a.destination); o.start(t); o.stop(t + 1.1);   // roar
+  },
+  step() {
+    const a = audio(); if (!a) return;
+    noise(a, a.currentTime, 0.05, 'lowpass', 500, 0.12);
+  },
+};
+
+// ================================================================== effects
+const shardGeos = [0, 1, 2, 3, 4].map((k) => {
+  const g = new THREE.IcosahedronGeometry(1, 0);
+  const pos = g.attributes.position, jit = new Map();
+  for (let i = 0; i < pos.count; i++) {
+    const key = [pos.getX(i), pos.getY(i), pos.getZ(i)].map((v) => v.toFixed(3)).join();
+    if (!jit.has(key)) jit.set(key, 0.55 + hash(i, k, 7) * 0.9);
+    const s = jit.get(key);
+    pos.setXYZ(i, pos.getX(i) * s, pos.getY(i) * s * 0.8, pos.getZ(i) * s);
+  }
+  g.computeVertexNormals();
+  return g;
+});
+const shards = [], particles = [], trails = [];
+let shake = null;
+
+function shatter(victim, dir) {
+  const color = victim.userData.color;
+  victim.updateWorldMatrix(true, true);
+  const box = new THREE.Box3().setFromObject(victim);
+  const c = box.getCenter(new V3());
+  const h = box.max.y - box.min.y;
+  victim.parent && victim.parent.remove(victim);
+  const count = Math.round(26 + h * 20);
+  for (let i = 0; i < count; i++) {
+    const y = box.min.y + 0.08 + Math.pow(rand(), 0.9) * (h - 0.08);
+    const a = rand() * Math.PI * 2, r = (0.06 + rand() * 0.14) * Math.sqrt(rand());
+    const m = new THREE.Mesh(shardGeos[i % 5], SHARD[color]);
+    m.position.set(c.x + Math.cos(a) * r, y, c.z + Math.sin(a) * r);
+    m.scale.setScalar(0.025 + rand() * 0.045);
+    m.rotation.set(rand() * 6, rand() * 6, rand() * 6);
+    m.castShadow = true;
+    scene.add(m);
+    const vel = new V3(Math.cos(a), 0, Math.sin(a)).multiplyScalar(0.4 + rand() * 1.4).addScaledVector(dir, 0.6 + rand() * 1.4);
+    vel.y = 0.5 + rand() * 2.0;
+    shards.push({ m, vel, spin: new V3(rand() - 0.5, rand() - 0.5, rand() - 0.5).multiplyScalar(12),
+      age: 0, life: 2.6 + rand() * 1.2, s0: m.scale.x, resting: false });
+  }
+  // the base remains as a cracked plinth, then sinks
+  spawnParticles(new V3(c.x, box.min.y + 0.3, c.z), { n: 70, color: color === 'w' ? 0xd8cfbf : 0x8a8794, size: 0.4, speed: 1.6, life: 1.8, up: 0.8, additive: false, opacity: 0.5 });
+  shake = { t0: clock, dur: 380, amp: giant ? 0.04 : 0.09 };
+  sfx.crumble();
+}
+
+function spawnParticles(origin, o) {
+  const N = o.n, geo = new THREE.BufferGeometry(), pos = new Float32Array(N * 3), vel = [];
+  for (let i = 0; i < N; i++) {
+    pos.set([origin.x, origin.y, origin.z], i * 3);
+    const v = new V3(rand() - 0.5, rand() - 0.5, rand() - 0.5).normalize().multiplyScalar(o.speed * (0.3 + rand()));
+    v.y += o.up * rand();
+    if (o.dir) v.addScaledVector(o.dir, o.speed * 0.5);
+    vel.push(v);
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({ map: softTex, color: o.color, size: o.size, transparent: true, opacity: o.opacity ?? 1,
+    depthWrite: false, blending: o.additive ? THREE.AdditiveBlending : THREE.NormalBlending });
+  const pts = new THREE.Points(geo, mat);
+  scene.add(pts);
+  particles.push({ pts, vel, age: 0, o });
+}
+function sparks(at, dir, power = 1, color = 0xffd080) {
+  spawnParticles(at, { n: Math.round(40 * power), color, size: 0.06, speed: 2.6 * power, life: 0.55, up: 1.2, additive: true, gravity: 6, drag: 0.4, dir });
+  spawnParticles(at, { n: 1, color: 0xfff2d0, size: 0.6 * power, speed: 0, life: 0.12, up: 0, additive: true });
+  const l = new THREE.PointLight(0xffc880, 6 * power, 3, 2);
+  l.position.copy(at);
+  scene.add(l);
+  tween(220, (t) => (l.intensity = 6 * power * (1 - t))).then(() => scene.remove(l));
+  shake = { t0: clock, dur: 160, amp: (giant ? 0.015 : 0.03) * power };
+}
+
+// Glowing ribbon behind a swinging blade.
+function startTrail(p) {
+  const N = 16, geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 2 * 3), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(N * 2 * 3), 3));
+  const idx = [];
+  for (let i = 0; i < N - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+  geo.setIndex(idx);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending,
+    depthWrite: false, side: THREE.DoubleSide }));
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  const tr = { p, mesh, N, samples: [], active: true, color: new THREE.Color(ARMY[p.userData.color].glow) };
+  trails.push(tr);
+  return tr;
+}
+function updateTrails() {
+  for (let i = trails.length - 1; i >= 0; i--) {
+    const tr = trails[i], j = tr.p.userData.j;
+    if (tr.active && tr.p.parent) {
+      tr.samples.unshift([j.tip.getWorldPosition(new V3()), j.hilt.getWorldPosition(new V3())]);
+      if (tr.samples.length > tr.N) tr.samples.pop();
+    } else {
+      tr.samples.pop();
+      if (!tr.samples.length) { scene.remove(tr.mesh); tr.mesh.geometry.dispose(); trails.splice(i, 1); continue; }
+    }
+    const pos = tr.mesh.geometry.attributes.position, col = tr.mesh.geometry.attributes.color;
+    for (let k = 0; k < tr.N; k++) {
+      const s = tr.samples[Math.min(k, tr.samples.length - 1)];
+      const fade = Math.max(0, 1 - k / tr.samples.length) * 0.9;
+      pos.setXYZ(k * 2, s[0].x, s[0].y, s[0].z);
+      pos.setXYZ(k * 2 + 1, s[1].x, s[1].y, s[1].z);
+      col.setXYZ(k * 2, tr.color.r * fade, tr.color.g * fade, tr.color.b * fade);
+      col.setXYZ(k * 2 + 1, 0, 0, 0);
+    }
+    pos.needsUpdate = col.needsUpdate = true;
+  }
+}
+
+const floorAt = (x, z) => (Math.abs(x) < 4.7 && Math.abs(z) < 4.7 ? BOARD_Y : TABLE_Y);
+function updateEffects(dt) {
+  for (let i = shards.length - 1; i >= 0; i--) {
+    const s = shards[i];
+    s.age += dt;
+    if (!s.resting) {
+      s.vel.y -= 9.8 * dt;
+      s.m.position.addScaledVector(s.vel, dt);
+      s.m.rotation.x += s.spin.x * dt; s.m.rotation.y += s.spin.y * dt; s.m.rotation.z += s.spin.z * dt;
+      const fy = floorAt(s.m.position.x, s.m.position.z) + s.m.scale.x * 0.5;
+      if (s.m.position.y < fy) {
+        s.m.position.y = fy;
+        s.vel.y *= -0.3; s.vel.x *= 0.5; s.vel.z *= 0.5;
+        s.spin.multiplyScalar(0.5);
+        if (Math.abs(s.vel.y) < 0.35) s.resting = true;
+      }
+    }
+    if (s.age > s.life) {
+      const k = 1 - (s.age - s.life) / 0.8;
+      if (k <= 0) { scene.remove(s.m); shards.splice(i, 1); continue; }
+      s.m.scale.setScalar(s.s0 * k);
+    }
+  }
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i], o = p.o;
+    p.age += dt;
+    const pos = p.pts.geometry.attributes.position;
+    p.vel.forEach((v, k) => {
+      v.multiplyScalar(Math.pow(o.drag ?? 0.12, dt));
+      v.y += (o.gravity ? -o.gravity : 0.15) * dt;
+      pos.setXYZ(k, pos.getX(k) + v.x * dt, pos.getY(k) + v.y * dt, pos.getZ(k) + v.z * dt);
+    });
+    pos.needsUpdate = true;
+    const k = p.age / o.life;
+    p.pts.material.opacity = (o.opacity ?? 1) * (1 - k);
+    if (!o.additive) p.pts.material.size = o.size * (1 + k * 1.5);
+    if (k >= 1) { scene.remove(p.pts); p.pts.geometry.dispose(); p.pts.material.dispose(); particles.splice(i, 1); }
+  }
+  updateTrails();
+}
+
+// ================================================================== locomotion
+const dirYaw = (d) => Math.atan2(-d.z, d.x);
+const shortest = (from, to) => from + ((((to - from + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI;
+function turn(p, yaw, dur = 240) {
+  const body = p.userData.body, from = body.rotation.y, to = shortest(from, yaw);
+  if (Math.abs(to - from) < 0.01) return Promise.resolve();
+  return tween(dur, (t) => (body.rotation.y = from + (to - from) * ease(t)));
+}
+const turnHome = () => Promise.resolve();    // pieces now settle into an aware facing after the move
+
+function gait(p, phase, amt) {
+  const j = p.userData.j, s = Math.sin(phase), c = Math.cos(phase);
+  if (p.userData.rigid) {                         // statue models hop and rock as they advance
+    j.fig.position.y = BASE_TOP + Math.abs(s) * 0.035 * amt;
+    j.fig.rotation.x = s * 0.07 * amt;
+    return;
+  }
+  if (j.legL) {
+    j.legL.rotation.z = s * 0.55 * amt; j.legR.rotation.z = -s * 0.55 * amt;
+    j.kneeL.rotation.z = -Math.max(0, -s) * 0.8 * amt; j.kneeR.rotation.z = -Math.max(0, s) * 0.8 * amt;
+    j.fig.position.y = BASE_TOP + Math.abs(c) * 0.012 * amt;
+  }
+  if (j.hFL) {
+    j.hFL.rotation.z = s * 0.7 * amt; j.hBR.rotation.z = s * 0.6 * amt;
+    j.hFR.rotation.z = -s * 0.7 * amt; j.hBL.rotation.z = -s * 0.6 * amt;
+    j.horse.rotation.z = c * 0.05 * amt;
+    j.fig.position.y = BASE_TOP + Math.abs(c) * 0.03 * amt;
+  }
+  if (j.legL || j.hFL) j.torso.rotation.y = s * 0.12 * amt;
+  if (!j.legL && !j.hFL) j.fig.position.y = BASE_TOP + Math.sin(phase * 0.5) * 0.015 * amt;   // robes glide
+  if (j.cape) j.cape.rotation.z = -0.35 * amt + s * 0.05;
+}
+async function walk(p, to, speed = 1) {
+  const from = p.position.clone(), body = p.userData.body;
+  const dist = Math.hypot(to.x - from.x, to.z - from.z);
+  if (dist < 0.01) return;
+  const robe = !p.userData.j.legL && !p.userData.j.hFL;
+  const dur = (260 + dist * (robe ? 380 : 340)) / speed;
+  const anim = playClip(p, 'walk', { loop: true });  // animated model: play its own walk/fly cycle
+  const fly = isFlyer(p);
+  if (fly) { p.userData.flying = true; p.userData.proc.boost = 2.2; }
+  const cycles = Math.max(1, Math.round(dist * (p.userData.j.hFL ? 2.2 : 1.8)));
+  let lastStep = 0;
+  await tween(dur, (t) => {
+    const k = Math.min(1, Math.min(t, 1 - t) * 6);   // ease the gait in and out
+    p.position.lerpVectors(from, to, ease(t) * 0.5 + t * 0.5);
+    p.position.y = from.y + (to.y - from.y) * t + (fly ? Math.sin(Math.PI * t) * Math.min(0.9, 0.25 + dist * 0.25) : 0);
+    if (!anim && !fly) gait(p, t * cycles * Math.PI * 2, k);
+    body.rotation.z = anim ? 0 : -0.07 * k;
+    const step = Math.floor(t * cycles * 2);
+    if (step !== lastStep && !robe) { lastStep = step; sfx.step(); }
+  });
+  body.rotation.z = 0;
+  gait(p, 0, 0);
+  if (anim) playClip(p, 'idle', { loop: true });
+  if (fly) { p.userData.flying = false; p.userData.proc.boost = 1; }
+}
+async function leap(p, to, height = 0.9) {
+  const from = p.position.clone(), j = p.userData.j;
+  const crouch = j.hFL ? { horse: [0, 0, 0.35], hFL: [0, 0, 0.6], hFR: [0, 0, 0.6], hNeck: [0, 0, 0.4] }
+    : { drop: -0.08, legL: [0, 0, 0.6], kneeL: [0, 0, -1.1], legR: [0, 0, 0.6], kneeR: [0, 0, -1.1], torso: [0, 0, -0.3] };
+  await poseTo(p, crouch, 220);
+  sfx.whoosh(0.4);
+  const tuck = j.hFL ? { horse: [0, 0, -0.1], hFL: [0, 0, 1.2], hFR: [0, 0, 1.1], hBL: [0, 0, -0.9], hBR: [0, 0, -0.8], hNeck: [0, 0, -0.2] }
+    : { drop: 0, legL: [0, 0, 1.0], kneeL: [0, 0, -1.4], legR: [0, 0, 0.3], kneeR: [0, 0, -0.6], torso: [0, 0, -0.1] };
+  poseTo(p, tuck, 300);
+  playClip(p, 'walk', { loop: true });
+  await tween(560, (t) => {
+    p.position.lerpVectors(from, to, ease(t));
+    p.position.y += Math.sin(Math.PI * t) * height;
+  });
+  sfx.thunk();
+  shake = { t0: clock, dur: 140, amp: giant ? 0.015 : 0.03 };
+  await poseTo(p, { ...idlePose(p.userData.type), drop: -0.05, kneeL: [0, 0, -0.4], kneeR: [0, 0, -0.4] }, 130);
+  await toIdle(p, 200);
+}
+function travel(p, to) {
+  return p.userData.type === 'n' ? leap(p, to) : walk(p, to);
+}
+
+// ================================================================== cinematic camera
+let cine = null;
+async function cinematicIn(a, b) {
+  if (!ui.cine.checked) return;
+  if (!cine) cine = { pos: camera.position.clone(), target: controls.target.clone(), min: controls.minDistance };
+  controls.minDistance = 0.5;
+  controls.enabled = false;
+  const mid = a.clone().add(b).multiplyScalar(0.5);
+  const d = b.clone().sub(a).setY(0).normalize();
+  const perp = new V3(-d.z, 0, d.x);
+  const camDir = camera.position.clone().sub(controls.target).setY(0).normalize();
+  if (perp.dot(camDir) < 0) perp.negate();
+  const target = mid.clone().setY(0.55);
+  const pos = target.clone().addScaledVector(perp, giant ? 2.2 : 2.6).addScaledVector(camDir, 0.35);
+  pos.y = target.y + (giant ? 0.7 : 1.6);
+  await moveCamera(pos, target, 850);
+  cine.drift = true;
+}
+async function cinematicOut() {
+  if (!cine) return;
+  const c = cine;
+  c.drift = false;
+  await moveCamera(c.pos, c.target, 900);
+  controls.minDistance = c.min;
+  controls.enabled = true;
+  cine = null;
+}
+function moveCamera(toPos, toTarget, dur) {
+  const fp = camera.position.clone(), ft = controls.target.clone();
+  return tween(dur, (t) => {
+    const e = ease(t);
+    camera.position.lerpVectors(fp, toPos, e);
+    controls.target.lerpVectors(ft, toTarget, e);
+  });
+}
+
+// ================================================================== model animations & dragon fire
+// Animated FBX/GLB pieces: clips are matched to battle actions by name (override with clipMap in manifest).
+const modelClips = {};          // type -> AnimationClip[]
+const mixers = new Set();
+const CLIP_KEYS = {
+  idle: ['idle', 'stand', 'breath', 'wait'],
+  walk: ['walk', 'run', 'move', 'gallop', 'fly', 'march', 'trot'],
+  attack: ['attack', 'slash', 'strike', 'swing', 'stab', 'combo', 'bite', 'claw', 'punch', 'kick', 'sword'],
+  fire: ['fire', 'breath', 'flame', 'spit', 'blast'],
+  block: ['block', 'defend', 'parry', 'guard', 'shield', 'dodge'],
+  hurt: ['hurt', 'damage', 'impact', 'react', 'hit', 'pain'],
+  death: ['death', 'die', 'dead', 'dying', 'fall', 'defeat'],
+  victory: ['victory', 'win', 'cheer', 'roar', 'taunt', 'celebrat', 'scream', 'yell'],
+};
+function autoClip(clips, kind) {
+  for (const key of CLIP_KEYS[kind]) {
+    const c = clips.find((x) => {
+      const n = x.name.toLowerCase();
+      return n.includes(key) && !(kind === 'hurt' && /attack|strike/.test(n));
+    });
+    if (c) return c;
+  }
+  return kind === 'idle' ? clips[0] : null;      // anything is better than a frozen bind pose
+}
+function clipFor(p, kind) {
+  const clips = p.userData.clips;
+  if (!clips || !clips.length) return null;
+  const st = p.userData.modelKey ? modelSettings[p.userData.modelKey] : null;
+  const map = { ...((p.userData.type && cfgFor(p.userData.type).clipMap) || {}), ...((st && st.clipMap) || {}) };
+  if (map[kind] === '__none') return null;
+  if (map[kind]) { const c = clips.find((x) => x.name === map[kind]); if (c) return c; }
+  return autoClip(clips, kind);
+}
+const hasClip = (p, kind) => !!(p.userData.mixer && clipFor(p, kind));
+function playClip(p, kind, { loop = false, fade = 0.25, speed = 1 } = {}) {
+  const mx = p.userData.mixer, clip = mx && clipFor(p, kind);
+  if (!clip) return 0;
+  const action = mx.clipAction(clip);
+  const prev = p.userData.action;
+  action.reset();
+  action.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
+  action.clampWhenFinished = !loop;
+  action.timeScale = speed;
+  action.enabled = true;
+  action.setEffectiveWeight(1);
+  action.play();
+  if (prev && prev !== action) prev.crossFadeTo(action, fade, false);
+  p.userData.action = action;
+  return (clip.duration * 1000) / speed;
+}
+function summariseClips(clips, type) {
+  if (!clips || !clips.length) return 'no animations (moves as a statue)';
+  const found = Object.keys(CLIP_KEYS).filter((k) => k !== 'idle' && clipFor({ userData: { clips, type } }, k));
+  return `${clips.length} animation(s)` + (found.length ? ` → ${found.join(', ')}` : '');
+}
+
+// Fire breath: a stream of additive particles, a flickering light and a roar.
+const fires = [];
+const breathesFire = (p) => {
+  if (!p.userData.rigid) return false;
+  const c = cfgFor(p.userData.type), st = modelSettings[p.userData.modelKey] || {};
+  return st.fire ?? c.fire ?? /dragon|drake|wyvern/i.test((c.file || '') + ' ' + (c.part || ''));
+};
+function mouthOf(p, dir, key) {
+  const st = modelSettings[key || p.userData.modelKey];
+  const root = p.getObjectByName('modelRoot');
+  if (st && st.mouth && root) { root.updateWorldMatrix(true, false); return root.localToWorld(new V3().fromArray(st.mouth)); }
+  let mouth = null;
+  p.traverse((o) => { if (!mouth && /jaw|mouth|tongue|head/i.test(o.name) && !o.isMesh) mouth = o; });
+  if (mouth) return mouth.getWorldPosition(new V3()).addScaledVector(dir, 0.08);
+  p.updateWorldMatrix(true, true);
+  const box = new THREE.Box3().setFromObject(p.getObjectByName('modelRoot') || p);
+  const c = box.getCenter(new V3()), size = box.getSize(new V3());
+  const reach = Math.abs(dir.x) * size.x * 0.5 + Math.abs(dir.z) * size.z * 0.5;
+  return c.addScaledVector(dir, reach * 0.9).setY(box.min.y + size.y * 0.82);
+}
+function fireBreath(from, dir, durMs, target = scene) {
+  const N = 900, geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(N * 3).fill(-100), col = new Float32Array(N * 3);
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ map: softTex, size: 0.26, vertexColors: true, transparent: true,
+    blending: THREE.AdditiveBlending, depthWrite: false }));
+  pts.frustumCulled = false;
+  const light = new THREE.PointLight(0xff7a20, 0, 7, 1.6);
+  light.position.copy(from);
+  target.add(pts, light);
+  fires.push({ scene: target, pts, pos, col, vel: new Float32Array(N * 3), age: new Float32Array(N).fill(9), life: new Float32Array(N).fill(1),
+    N, next: 0, from: from.clone(), dir: dir.clone().normalize(), t: 0, dur: durMs / 1000, light, carry: 0 });
+  sfx.fire(durMs / 1000);
+}
+function updateFires(dt) {
+  for (let i = fires.length - 1; i >= 0; i--) {
+    const f = fires[i];
+    f.t += dt;
+    const emitting = f.t < f.dur;
+    if (emitting) {
+      f.carry += dt * 650;
+      const side = new V3(-f.dir.z, 0, f.dir.x), up = new V3(0, 1, 0);
+      while (f.carry >= 1) {
+        f.carry--;
+        const k = f.next++ % f.N;
+        const sp = 0.18 + f.t * 0.1;
+        const v = f.dir.clone().multiplyScalar(3.0 + rand() * 1.4)
+          .addScaledVector(side, (rand() - 0.5) * sp * 3).addScaledVector(up, (rand() - 0.5) * sp * 2);
+        f.pos.set([f.from.x + (rand() - 0.5) * 0.03, f.from.y + (rand() - 0.5) * 0.03, f.from.z + (rand() - 0.5) * 0.03], k * 3);
+        f.vel.set([v.x, v.y, v.z], k * 3);
+        f.age[k] = 0;
+        f.life[k] = 0.42 + rand() * 0.3;
+      }
+    }
+    let alive = 0;
+    for (let k = 0; k < f.N; k++) {
+      if (f.age[k] >= f.life[k]) { f.pos[k * 3 + 1] = -100; continue; }
+      alive++;
+      f.age[k] += dt;
+      const a = f.age[k] / f.life[k], drag = Math.pow(0.25, dt);
+      f.vel[k * 3] *= drag; f.vel[k * 3 + 1] = f.vel[k * 3 + 1] * drag + 1.4 * dt; f.vel[k * 3 + 2] *= drag;
+      f.pos[k * 3] += f.vel[k * 3] * dt; f.pos[k * 3 + 1] += f.vel[k * 3 + 1] * dt; f.pos[k * 3 + 2] += f.vel[k * 3 + 2] * dt;
+      const fade = (1 - a) * (1 - a);                          // white-yellow core -> orange -> dark red
+      f.col[k * 3] = 1.0 * fade + 0.1;
+      f.col[k * 3 + 1] = Math.max(0, 0.85 - a * 1.2) * fade;
+      f.col[k * 3 + 2] = Math.max(0, 0.45 - a * 2.0) * fade;
+    }
+    f.pts.geometry.attributes.position.needsUpdate = f.pts.geometry.attributes.color.needsUpdate = true;
+    f.pts.material.size = 0.22 + Math.min(f.t, 1) * 0.1;
+    f.light.intensity = emitting ? 9 * (0.8 + rand() * 0.4) : Math.max(0, f.light.intensity - dt * 30);
+    f.light.position.copy(f.from).addScaledVector(f.dir, 0.8);
+    if (!emitting && !alive) { f.scene.remove(f.pts, f.light); f.pts.geometry.dispose(); fires.splice(i, 1); }
+  }
+}
+const CHARRED = S({ color: 0x1b1410, roughness: 0.95, emissive: 0xff4810, emissiveIntensity: 1 });
+function scorch(p) {
+  CHARRED.emissiveIntensity = 1.2;
+  p.traverse((o) => { if (o.isMesh) o.material = CHARRED; if (o.isSprite) o.visible = false; });
+  if (p.userData.mixer) p.userData.mixer.timeScale = 0;
+  tween(1100, (t) => (CHARRED.emissiveIntensity = 1.2 * (1 - t)));
+}
+
+// ================================================================== per-model settings & procedural motion
+// Settings belong to a model (file + part), so every piece using that model behaves the same.
+const modelSettings = {};
+const modelKey = (file, part) => `${file}#${part || ''}`;
+const ACTIONS = ['idle', 'walk', 'attack', 'fire', 'block', 'hurt', 'death', 'victory'];
+const ACTION_LABEL = { idle: 'Idle', walk: 'Walk / fly', attack: 'Attack', fire: 'Fire breath', block: 'Block', hurt: 'Hurt', death: 'Death', victory: 'Victory' };
+function settingsFor(key) {
+  const s = (modelSettings[key] ||= {});
+  s.clipMap ||= {};
+  s.flap ||= { on: false, axis: 'z', speed: 6, amp: 0.55, invert: true };
+  s.flap.body ??= 0.3;        // mesh-bend: fraction of the half-span that stays rigid (the body)
+  s.flap.span ??= 'auto';     // mesh-bend: axis the wings spread along
+  s.hover ??= false;
+  return s;
+}
+const saveSettings = (key) => dbPut('pieces', 'model:' + key, modelSettings[key]);
+const pieceModelKey = (type) => { const c = cfgFor(type); return c.file ? modelKey(c.file, c.part) : ''; };
+
+const sideOf = (name) => {
+  const n = name.toLowerCase();
+  if (n.includes('left') || /(^|[._\s-])l([._\s\d-]|$)/.test(n)) return -1;
+  if (n.includes('right') || /(^|[._\s-])r([._\s\d-]|$)/.test(n)) return 1;
+  return 1;
+};
+// Inspect a model: animations, skeleton, wings / jaw / tail, and whether it looks like a dragon.
+function analyzeModel(root, clips = [], file = '') {
+  const named = [];
+  let bones = 0, meshes = 0;
+  root.traverse((o) => { if (o.isBone) bones++; if (o.isMesh) meshes++; if (o.name) named.push(o); });
+  let wings = named.filter((o) => /wing/i.test(o.name) && !o.isMesh);
+  if (!wings.length) wings = named.filter((o) => /wing/i.test(o.name));
+  const jaw = named.find((o) => /jaw|mouth/i.test(o.name));
+  const head = named.find((o) => /head/i.test(o.name) && !o.isMesh);
+  const tail = named.filter((o) => /tail/i.test(o.name));
+  const text = (file + ' ' + named.map((o) => o.name).join(' ') + ' ' + clips.map((c) => c.name).join(' '));
+  return { bones, meshes, wings, jaw, head, tail, clips, dragon: /dragon|wyvern|drake/i.test(text), creature: wings.length > 0 };
+}
+// Attach procedural motion (wing flapping, hovering) to a piece or preview object.
+function setupProcedural(p, root, key) {
+  const st = settingsFor(key);
+  const info = analyzeModel(root);
+  const set = new Set(info.wings);
+  const animated = new Set();
+  for (const c of p.userData.clips || []) for (const tr of c.tracks) animated.add(tr.name.split('.')[0]);
+  p.userData.proc = {
+    st, t: rand() * 10, boost: 1,
+    baseY: p.userData.j && p.userData.j.fig ? p.userData.j.fig.position.y : 0,
+    wings: info.wings.map((o) => {
+      let depth = 0;
+      for (let q = o.parent; q; q = q.parent) if (set.has(q)) depth++;
+      return { o, base: o.quaternion.clone(), depth, side: sideOf(o.name), animated: animated.has(o.name) };
+    }),
+  };
+}
+const AXES = { x: new V3(1, 0, 0), y: new V3(0, 1, 0), z: new V3(0, 0, 1) };
+const _q = new THREE.Quaternion();
+function updateProcedural(p, dt) {
+  const pr = p.userData.proc;
+  if (!pr) return;
+  const st = pr.st;
+  pr.t += dt * pr.boost;
+  if (st.flap.on && pr.wings.length) {
+    const ang = Math.sin(pr.t * st.flap.speed) * st.flap.amp;
+    const axis = AXES[st.flap.axis] || AXES.z;
+    for (const w of pr.wings) {
+      if (!w.animated || !p.userData.mixer) w.o.quaternion.copy(w.base);   // clips already pose animated bones each frame
+      const a = ang * (w.depth === 0 ? 1 : 0.45) * (st.flap.invert && w.side < 0 ? -1 : 1);
+      w.o.quaternion.multiply(_q.setFromAxisAngle(axis, a));
+    }
+  }
+  if (pr.gem === undefined) pr.gem = (p.getObjectByName && p.getObjectByName('badgeGem')) || null;
+  if (pr.gem) pr.gem.rotation.y += dt * 1.6;
+  const fig = p.userData.j && p.userData.j.fig;
+  if (fig && st.hover && !p.userData.flying) fig.position.y = pr.baseY + 0.07 + Math.sin(pr.t * 2.2) * 0.035;
+}
+const procPieces = new Set();
+
+// Mesh-bend wing flap for static (unrigged) models: a vertex-shader deformation that lifts and lowers
+// everything beyond the body along the wing-span axis — the further out, the more it moves.
+const bendTime = { value: 0 };
+const bendModel = {};                          // modelKey -> shared uniforms (amp, speed, body)
+const modelBones = {};                         // modelKey -> number of wing bones (bones win over mesh bending)
+function bendUniformsFor(key) {
+  return (bendModel[key] ||= { uBendAmp: { value: 0 }, uBendSpeed: { value: 6 }, uBendBody: { value: 0.3 } });
+}
+function syncBend() {
+  for (const [key, u] of Object.entries(bendModel)) {
+    const st = settingsFor(key), useBones = (modelBones[key] || 0) > 0;
+    u.uBendAmp.value = st.flap.on && !useBones ? st.flap.amp : 0;
+    u.uBendSpeed.value = st.flap.speed;
+    u.uBendBody.value = st.flap.body;
+  }
+}
+const AXIS_V = { x: new V3(1, 0, 0), y: new V3(0, 1, 0), z: new V3(0, 0, 1) };
+// Pick the mesh's up axis (most vertical once placed) and span axis (widest of the other two).
+function meshAxes(mesh, spanPref) {
+  mesh.geometry.computeBoundingBox();
+  const bb = mesh.geometry.boundingBox, size = bb.getSize(new V3()), ctr = bb.getCenter(new V3());
+  const m = new THREE.Matrix3().setFromMatrix4(mesh.matrixWorld);
+  const worldY = (ax) => Math.abs(AXIS_V[ax].clone().applyMatrix3(m).normalize().y);
+  const up = ['x', 'y', 'z'].sort((a, b) => worldY(b) - worldY(a))[0];
+  const rest = ['x', 'y', 'z'].filter((a) => a !== up);
+  const span = spanPref !== 'auto' && spanPref !== up ? spanPref : rest.sort((a, b) => size[b] - size[a])[0];
+  const upSign = AXIS_V[up].clone().applyMatrix3(m).y >= 0 ? 1 : -1;
+  return { span, up, center: ctr[span], half: Math.max(1e-4, size[span] / 2), upSign };
+}
+function bentMaterial(base, key, axes) {
+  const mat = base.clone();
+  const u = bendUniformsFor(key);
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u, { uBendTime: bendTime,
+      uBendSpan: { value: AXIS_V[axes.span] }, uBendUp: { value: AXIS_V[axes.up].clone().multiplyScalar(axes.upSign) },
+      uBendCenter: { value: axes.center }, uBendHalf: { value: axes.half } });
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uBendTime, uBendAmp, uBendSpeed, uBendBody, uBendCenter, uBendHalf;\nuniform vec3 uBendSpan, uBendUp;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        {
+          float d = dot(position, uBendSpan) - uBendCenter;
+          float start = uBendHalf * uBendBody;
+          float e = max(abs(d) - start, 0.0) / max(uBendHalf - start, 1e-4);
+          float a = sin(uBendTime * uBendSpeed) * uBendAmp * e * e;
+          transformed += uBendUp * a * (uBendHalf - start) * 0.9;
+          transformed -= uBendSpan * sign(d) * (1.0 - cos(a)) * (uBendHalf - start) * e * 0.5;
+        }`);
+  };
+  mat.customProgramCacheKey = () => 'bend-' + key + '-' + axes.span + axes.up + axes.upSign + '-' + base.uuid;
+  return mat;
+}
+// Replace each mesh's material with a bending copy (only for models without wing bones).
+function applyBend(root, key) {
+  if ((modelBones[key] || 0) > 0) return;
+  bendUniformsFor(key);
+  const st = settingsFor(key);
+  root.updateMatrixWorld(true);
+  root.traverse((o) => {
+    if (!o.isMesh || o.userData.marker) return;
+    const axes = meshAxes(o, st.flap.span);
+    o.material = Array.isArray(o.material) ? o.material.map((mm) => bentMaterial(mm, key, axes)) : bentMaterial(o.material, key, axes);
+  });
+  syncBend();
+}
+const isFlyer = (p) => !!(p.userData.proc && (p.userData.proc.st.hover || p.userData.proc.st.flap.on));
+
+// ================================================================== side looks for imported models
+// Each model keeps its real colours by default; how the White and Black sides differ is set per model
+// in the Studio: auto filter, own colours, colour filter, paint chosen parts, or marble/obsidian. Plus badges.
+const OWN = new WeakMap();                    // mesh -> its original material(s)
+const TEAM_MODES = { auto: 'Auto filter', own: 'Own colours', tint: 'Colour filter', parts: 'Paint parts', army: 'Marble / obsidian' };
+const PAINTS = {
+  white: S({ color: 0xf3efe6, map: stoneTex, roughness: 0.4 }),
+  black: S({ color: 0x1c1c21, map: stoneTex, roughness: 0.32, metalness: 0.15 }),
+  gold: S({ color: 0xe2b25a, roughness: 0.3, metalness: 0.85, emissive: 0x4a3008 }),
+};
+const BADGE_COLOR = { w: 0xffe3a0, b: 0xff4a2a };
+function teamFor(key) {
+  const st = settingsFor(key);
+  st.team ||= {};
+  st.team.w ||= { mode: 'auto', tint: '#ffffff', strength: 0.5, parts: {} };
+  st.team.b ||= { mode: 'auto', tint: '#000000', strength: 0.65, parts: {} };
+  st.team.badge ??= 'ring';
+  return st.team;
+}
+const partId = (mesh, mat) => (mat && mat.name) || mesh.name || 'unnamed part';
+// Rough brightness of a model (material colours × texture brightness), cached per model.
+const lumaCache = {};
+function textureLuma(tex) {
+  try {
+    const img = tex && tex.image;
+    if (!img || !(img.width || img.videoWidth)) return 1;
+    const c = document.createElement('canvas'); c.width = c.height = 8;
+    const g = c.getContext('2d');
+    g.drawImage(img, 0, 0, 8, 8);
+    const d = g.getImageData(0, 0, 8, 8).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+    return sum / 64;
+  } catch { return 1; }
+}
+function modelLuma(root, key) {
+  if (lumaCache[key] !== undefined) return lumaCache[key];
+  let sum = 0, n = 0;
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of [].concat(OWN.get(o) || o.material)) {
+      if (!m || !m.color) continue;
+      const c = m.color;
+      sum += (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) * textureLuma(m.map);
+      n++;
+    }
+  });
+  return (lumaCache[key] = n ? sum / n : 0.6);
+}
+// What a side actually does once "auto" is resolved.
+function resolveTeam(key, side, root) {
+  const t = teamFor(key)[side];
+  if (t.mode !== 'auto') return t;
+  if (!modelCfg.keepMaterials) return { mode: 'army' };      // global default: statue look
+  const dark = modelLuma(root, key) < 0.28;
+  if (side === 'w') return dark ? { mode: 'tint', tint: '#ffffff', strength: 0.55 } : { mode: 'own' };
+  return dark ? { mode: 'own' } : { mode: 'tint', tint: '#000000', strength: 0.65 };
+}
+const teamCache = new Map();
+function teamMaterial(orig, side, key, part, t) {
+  if (t.mode === 'own') return orig;
+  if (t.mode === 'army') return ARMY[side].stone;
+  if (t.mode === 'parts') { const p = t.parts && t.parts[part]; return p && PAINTS[p] ? PAINTS[p] : orig; }
+  const ck = [orig.uuid, side, t.tint, t.strength].join('|');
+  if (!teamCache.has(ck)) {
+    const m = orig.clone(), col = new THREE.Color(t.tint), lum = 0.2126 * col.r + 0.7152 * col.g + 0.0722 * col.b;
+    if (m.color) m.color.lerp(col, t.strength);
+    if (lum > 0.5 && m.emissive) m.emissive = col.clone().multiplyScalar(t.strength * 0.25);   // lift dark textures toward the tint
+    teamCache.set(ck, m);
+  }
+  return teamCache.get(ck);
+}
+// Apply a side's look to every mesh of a model (orig materials are remembered on the mesh).
+function applyTeam(root, side, key) {
+  const t = resolveTeam(key, side, root);
+  root.traverse((o) => {
+    if (!o.isMesh || o.userData.marker || o.userData.badge) return;
+    if (!OWN.has(o)) OWN.set(o, o.material);
+    const own = OWN.get(o);
+    o.material = Array.isArray(own) ? own.map((m) => teamMaterial(m, side, key, partId(o, m), t)) : teamMaterial(own, side, key, partId(o, own), t);
+  });
+}
+function addBadge(fig, side, key, h) {
+  const kind = teamFor(key).badge;
+  if (kind === 'ring') {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.255, 0.014, 8, 48), new THREE.MeshBasicMaterial({ color: BADGE_COLOR[side] }));
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.006;
+    ring.userData.badge = true;
+    fig.add(ring);
+  } else if (kind === 'gem') {
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.05), S({ color: BADGE_COLOR[side], emissive: BADGE_COLOR[side], emissiveIntensity: 0.6, metalness: 0.3, roughness: 0.2 }));
+    gem.name = 'badgeGem';
+    gem.position.y = h + 0.14;
+    gem.userData.badge = true;
+    fig.add(gem);
+  }
+}
+function modelParts(root) {
+  const set = new Set();
+  root.traverse((o) => { if (o.isMesh && !o.userData.marker) for (const m of [].concat(OWN.get(o) || o.material)) set.add(partId(o, m)); });
+  return [...set];
+}
+// Re-create board pieces that use a model after its look changed.
+function refreshBoardFor(key) {
+  for (const t of Object.keys(PIECE_NAMES)) if (pieceModelKey(t) === key) { delete prototypes[t + 'w']; delete prototypes[t + 'b']; }
+  if (state && !busy) { rebuildPieces(); refreshOverlay(); }
+}
+
+// ================================================================== model studio
+const studio = { open: false, renderer: null, scene: null, camera: null, controls: null, holder: null, fake: null,
+  file: '', part: '', key: '', info: null, turntable: true, army: 'w', last: 0, clipPreview: '' };
+const stEl = {
+  root: document.getElementById('studio'), list: document.getElementById('stList'), panel: document.getElementById('stPanel'),
+  canvas: document.getElementById('stCanvas'), army: document.getElementById('stArmy'), turn: document.getElementById('stTurn'),
+  add: document.getElementById('stAdd'), status: document.getElementById('stStatus'),
+};
+function initStudio() {
+  if (studio.renderer) return;
+  const r = (studio.renderer = new THREE.WebGLRenderer({ canvas: stEl.canvas, antialias: true }));
+  r.setPixelRatio(Math.min(devicePixelRatio, 2));
+  r.outputColorSpace = THREE.SRGBColorSpace;
+  r.toneMapping = THREE.ACESFilmicToneMapping;
+  r.shadowMap.enabled = true;
+  const s = (studio.scene = new THREE.Scene());
+  s.background = new THREE.Color(0x15171d);
+  s.environment = new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(), 0.04).texture;
+  s.add(new THREE.HemisphereLight(0xdde6ff, 0x221a14, 0.8));
+  const key = new THREE.DirectionalLight(0xffffff, 2.2);
+  key.position.set(3, 5, 4); key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
+  s.add(key);
+  const rim = new THREE.DirectionalLight(0xffb070, 1.2);
+  rim.position.set(-4, 3, -3);
+  s.add(rim);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(3, 48), new THREE.MeshStandardMaterial({ color: 0x24262d, roughness: 0.9 }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
+  s.add(ground);
+  const grid = new THREE.GridHelper(6, 12, 0x3a3d46, 0x2c2f37);
+  grid.position.y = 0.001;
+  s.add(grid);
+  studio.camera = new THREE.PerspectiveCamera(40, 1, 0.01, 100);
+  studio.camera.position.set(2.2, 1.6, 3.2);
+  studio.controls = new OrbitControls(studio.camera, stEl.canvas);
+  studio.controls.target.set(0, 0.75, 0);
+  studio.controls.enableDamping = true;
+}
+function sizeStudio() {
+  const box = stEl.canvas.parentElement.getBoundingClientRect();
+  const w = Math.max(200, box.width), h = Math.max(200, box.height - 44);
+  studio.renderer.setSize(w, h, false);
+  stEl.canvas.style.width = w + 'px'; stEl.canvas.style.height = h + 'px';
+  studio.camera.aspect = w / h;
+  studio.camera.updateProjectionMatrix();
+}
+function studioLoop(now) {
+  if (!studio.open) return;
+  requestAnimationFrame(studioLoop);
+  const dt = Math.min(0.05, (now - (studio.last || now)) / 1000);
+  studio.last = now;
+  if (studio.fake) {
+    if (studio.fake.userData.mixer) studio.fake.userData.mixer.update(dt);
+    updateProcedural(studio.fake, dt);
+    if (studio.turntable) studio.holder.rotation.y += dt * 0.4;
+  }
+  studio.controls.update();
+  studio.renderer.render(studio.scene, studio.camera);
+}
+async function openStudio(file) {
+  initStudio();
+  studio.open = true;
+  stEl.root.style.display = 'flex';
+  sizeStudio();
+  studio.last = 0;
+  requestAnimationFrame(studioLoop);
+  renderStudioList();
+  const files = modelFileNames();
+  if (file || (!studio.file && files.length)) await studioSelect(file || files[0], '');
+  else if (!files.length) renderStudioPanel();
+}
+function closeStudio() { studio.open = false; stEl.root.style.display = 'none'; }
+
+function usedBy(file, part) {
+  return Object.keys(PIECE_NAMES).filter((t) => cfgFor(t).file === file && (cfgFor(t).part || '') === (part || ''));
+}
+function renderStudioList() {
+  const files = modelFileNames();
+  stEl.list.innerHTML = files.length ? '' : '<p class="muted">No models yet. Use “＋ Add models” to choose your folder of .fbx / .glb files.</p>';
+  for (const f of files) {
+    const users = Object.keys(PIECE_NAMES).filter((t) => cfgFor(t).file === f).map((t) => PIECE_NAMES[t]);
+    const b = document.createElement('button');
+    b.className = 'stItem' + (f === studio.file ? ' on' : '');
+    b.innerHTML = `<b>${esc(f)}</b><span>${users.length ? 'Used by ' + users.join(', ') : 'Not used yet'}</span>`;
+    b.onclick = () => studioSelect(f, '');
+    stEl.list.appendChild(b);
+  }
+}
+function studioMaterials() {
+  studio.holder.traverse((o) => {
+    if (!o.isMesh || o.userData.marker) return;
+    if (!OWN.has(o)) OWN.set(o, o.material);
+    o.material = OWN.get(o);
+    o.castShadow = true;
+  });
+  const root = studio.holder.getObjectByName('modelRoot');
+  if (studio.army !== 'own') applyTeam(root, studio.army, studio.key);
+  modelBones[studio.key] = studio.info ? studio.info.wings.filter((o) => !o.isMesh).length : 0;
+  applyBend(root, studio.key);
+  placeMouthMarker();
+}
+// A small glowing marker where fire comes out.
+function placeMouthMarker() {
+  const root = studio.holder && studio.holder.getObjectByName('modelRoot');
+  if (!root) return;
+  let mk = root.getObjectByName('mouthMarker');
+  const st = settingsFor(studio.key);
+  if (!st.mouth) { if (mk) mk.visible = false; return; }
+  if (!mk) {
+    mk = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff7a20, depthTest: false }));
+    mk.name = 'mouthMarker'; mk.userData.marker = true; mk.renderOrder = 10;
+    root.add(mk);
+  }
+  root.updateWorldMatrix(true, false);
+  const s = new V3().setFromMatrixScale(root.matrixWorld).x || 1;
+  mk.scale.setScalar(0.035 / s);
+  mk.position.fromArray(st.mouth);
+  mk.visible = true;
+}
+async function studioSelect(file, part) {
+  studio.file = file; studio.part = part || ''; studio.key = modelKey(file, studio.part);
+  renderStudioList();
+  stEl.status.textContent = 'Loading ' + file + '…';
+  let root;
+  try { root = await sceneFor(file); }
+  catch (e) { stEl.status.textContent = '⚠ Could not load ' + file + ': ' + (e.message || e); return; }
+  if (studio.holder) studio.scene.remove(studio.holder);
+  const obj = extractPart(root, studio.part);
+  const clips = root.animations || [];
+  // normalise to 1.6 units tall, standing on the ground, using the first piece's facing/upright settings
+  const users = usedBy(file, studio.part);
+  const c = users.length ? cfgFor(users[0]) : { tilt: 0 };
+  const tiltG = new THREE.Group(); tiltG.name = 'modelRoot';
+  tiltG.rotation.x = ((c.tilt || 0) * Math.PI) / 180;
+  tiltG.add(obj);
+  const holder = new THREE.Group(), inner = new THREE.Group();
+  inner.add(tiltG); holder.add(inner);
+  holder.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(holder), size = box.getSize(new V3()), ctr = box.getCenter(new V3());
+  const s = 1.6 / (size.y || 1);
+  inner.scale.setScalar(s);
+  inner.position.set(-ctr.x * s, -box.min.y * s, -ctr.z * s);
+  studio.holder = holder;
+  studio.scene.add(holder);
+  obj.traverse((o) => { if (o.isMesh && !o.geometry.attributes.normal) o.geometry.computeVertexNormals(); });
+  studio.info = analyzeModel(obj, clips, file);
+  studio.partsList = modelParts(obj);
+  studioMaterials();
+  studio.fake = { userData: { type: '', modelKey: studio.key, clips, j: { fig: inner } } };
+  if (clips.length) {
+    studio.fake.userData.mixer = new THREE.AnimationMixer(tiltG);
+    playClip(studio.fake, 'idle', { loop: true, fade: 0 });
+  }
+  setupProcedural(studio.fake, obj, studio.key);
+  studio.fake.userData.proc.baseY = inner.position.y;
+  studio.info = analyzeModel(obj, clips, file);
+  studio.parts = partsOf(root);
+  stEl.status.textContent = '';
+  renderStudioPanel();
+}
+const fmt = (sec) => (sec < 10 ? sec.toFixed(1) : Math.round(sec)) + 's';
+function capabilityRows() {
+  const fake = studio.fake, st = settingsFor(studio.key), info = studio.info;
+  return ACTIONS.map((a) => {
+    const clip = clipFor(fake, a);
+    let how, cls;
+    if (clip) { how = `animation “${esc(clip.name)}”`; cls = 'ok'; }
+    else if (a === 'fire') {
+      const on = st.fire ?? info.dragon;
+      how = on ? 'fire stream (built-in effect)' : 'off'; cls = on ? 'proc' : 'none';
+    } else if ((a === 'idle' || a === 'walk') && st.flap.on) { how = info.wings.filter((o) => !o.isMesh).length ? 'wing flap (bones)' : 'wing flap (mesh bend)'; cls = 'proc'; }
+    else { how = 'statue moves (lean / lunge / hop)'; cls = 'none'; }
+    return { a, how, cls };
+  });
+}
+function renderStudioPanel() {
+  const P = stEl.panel;
+  if (!studio.fake) { P.innerHTML = '<p class="muted">Add a model to begin.</p>'; return; }
+  const info = studio.info, st = settingsFor(studio.key), clips = info.clips;
+  const fireOn = st.fire ?? info.dragon;
+  const users = usedBy(studio.file, studio.part);
+  P.innerHTML = `
+    <h3>${esc(studio.file)}</h3>
+    ${studio.parts.length > 1 ? `<label>Part of file<select id="stPart">${opt('', 'Whole file', !studio.part)}${studio.parts.map((p) => opt(p, esc(p), p === studio.part)).join('')}</select></label>` : ''}
+    <div class="chips">
+      <span class="chip">${clips.length} animation${clips.length === 1 ? '' : 's'}</span>
+      <span class="chip">${info.bones} bones</span>
+      <span class="chip ${info.wings.length ? 'ok' : ''}">${info.wings.length ? info.wings.length + ' wing bones' : 'no wings'}</span>
+      ${info.jaw ? '<span class="chip ok">jaw</span>' : ''}${info.tail.length ? '<span class="chip ok">tail</span>' : ''}
+      ${info.dragon ? '<span class="chip fire">dragon</span>' : ''}
+    </div>
+    <h4>What it can do</h4>
+    <table class="caps">${capabilityRows().map((r) => `<tr><td>${ACTION_LABEL[r.a]}</td><td class="${r.cls}">${r.how}</td></tr>`).join('')}</table>
+    <h4>Actions <span class="muted">(choose which animation plays)</span></h4>
+    <table class="acts">${ACTIONS.map((a) => `<tr><td>${ACTION_LABEL[a]}</td><td><select data-act="${a}">
+        ${opt('', 'Auto' + (clipFor({ userData: { ...studio.fake.userData, clips } }, a) && !st.clipMap[a] ? ' → ' + esc(clipFor(studio.fake, a).name) : ''), !st.clipMap[a])}
+        ${opt('__none', 'None (statue moves)', st.clipMap[a] === '__none')}
+        ${clips.map((c) => opt(c.name, esc(c.name), st.clipMap[a] === c.name)).join('')}</select></td>
+        <td><button class="mini" data-play="${a}" title="Preview">▶</button></td></tr>`).join('')}</table>
+    ${clips.length ? `<h4>All animations</h4><div class="clips">${clips.map((c, i) => `<button class="mini" data-clip="${i}">▶ ${esc(c.name)} <span class="muted">${fmt(c.duration)}</span></button>`).join('')}</div>` : ''}
+    <h4>Creature</h4>
+    <label class="check"><input type="checkbox" id="stFire" ${fireOn ? 'checked' : ''}> Breathes fire (attacks from range)</label>
+    <div class="row">
+      <button id="stMouth" class="mini">${studio.picking ? '👆 Click the mouth on the model…' : '🎯 Set fire point'}</button>
+      <button id="stFireTest" class="mini">🔥 Test fire</button>
+      ${st.mouth ? '<button id="stMouthReset" class="mini">Reset point</button>' : ''}
+    </div>
+    <p class="muted">${st.mouth ? 'Fire comes from the orange dot.' : 'Fire point is estimated — set it by clicking the mouth for accurate fire.'}</p>
+    <label class="check"><input type="checkbox" id="stFlap" ${st.flap.on ? 'checked' : ''}> Flap wings</label>
+    <p class="muted">${info.wings.filter((o) => !o.isMesh).length ? 'Uses the model’s wing bones.' : 'No wing bones — the mesh itself bends: everything outside the body moves up and down.'}</p>
+    <div class="flapopts" ${st.flap.on ? '' : 'hidden'}>
+      ${info.wings.filter((o) => !o.isMesh).length ? '' : `<label>Body width <input type="range" id="stFlapBody" min="0.05" max="0.85" step="0.01" value="${st.flap.body}"></label>
+      <label>Wing span axis <select id="stFlapSpan">${['auto', 'x', 'y', 'z'].map((x) => opt(x, x === 'auto' ? 'Auto' : x.toUpperCase(), st.flap.span === x)).join('')}</select></label>`}
+      <label>Speed <input type="range" id="stFlapSpeed" min="1" max="14" step="0.5" value="${st.flap.speed}"></label>
+      <label>Strength <input type="range" id="stFlapAmp" min="0.1" max="1.4" step="0.05" value="${st.flap.amp}"></label>
+      <label>Axis <select id="stFlapAxis">${['x', 'y', 'z'].map((x) => opt(x, x.toUpperCase(), st.flap.axis === x)).join('')}</select></label>
+      <label class="check"><input type="checkbox" id="stFlapInv" ${st.flap.invert ? 'checked' : ''}> Mirror left wing</label>
+    </div>
+    <label class="check"><input type="checkbox" id="stHover" ${st.hover ? 'checked' : ''}> Hovers, and flies when it moves</label>
+    <h4>Sides</h4>
+    <p class="muted">How this model tells White from Black.</p>
+    ${['w', 'b'].map((side) => { const t = teamFor(studio.key)[side], r = resolveTeam(studio.key, side, studio.holder);
+      const auto = t.mode === 'auto' ? `<span class="muted">→ ${r.mode === 'own' ? 'own colours' : r.mode === 'army' ? 'marble / obsidian' : (new THREE.Color(r.tint).getHSL({}).l > 0.5 ? 'light filter' : 'dark filter')}</span>` : '';
+      return `<div class="sidebox"><div class="row"><b>${side === 'w' ? 'White side' : 'Black side'}</b>
+        <select data-tmode="${side}">${Object.entries(TEAM_MODES).map(([k, v]) => opt(k, v, t.mode === k)).join('')}</select></div>${auto}
+        ${t.mode === 'tint' ? `<div class="row"><label>Filter colour <input type="color" data-ttint="${side}" value="${t.tint}"></label>
+          <label>Strength <input type="range" data-tstr="${side}" min="0.05" max="1" step="0.05" value="${t.strength}"></label></div>` : ''}
+        ${t.mode === 'parts' ? `<table class="parts">${studio.partsList.map((name, i) => `<tr><td>${esc(name)}</td><td><select data-tpart="${side}" data-pidx="${i}">
+          ${opt('', 'keep', !t.parts[name])}${['white', 'black', 'gold'].map((c) => opt(c, c, t.parts[name] === c)).join('')}</select></td></tr>`).join('')}</table>` : ''}
+        </div>`; }).join('')}
+    <label>Side badge <select id="stBadge">${[['none', 'None (plinth only)'], ['ring', 'Glowing ring'], ['gem', 'Floating gem']].map(([v, l]) => opt(v, l, teamFor(studio.key).badge === v)).join('')}</select></label>
+    <h4>Use for pieces</h4>
+    <div class="usefor">${Object.keys(PIECE_NAMES).map((t) => `<label class="check"><input type="checkbox" data-use="${t}" ${users.includes(t) ? 'checked' : ''}> ${PIECE_NAMES[t]}</label>`).join('')}</div>`;
+
+  const save = () => { saveSettings(studio.key); };
+  const rerender = () => { renderStudioPanel(); renderStudioList(); };
+  const part = P.querySelector('#stPart');
+  if (part) part.onchange = () => studioSelect(studio.file, part.value);
+  P.querySelectorAll('[data-act]').forEach((el) => (el.onchange = () => {
+    if (el.value) st.clipMap[el.dataset.act] = el.value; else delete st.clipMap[el.dataset.act];
+    save(); playAction(el.dataset.act); renderStudioPanel();
+  }));
+  P.querySelectorAll('[data-play]').forEach((el) => (el.onclick = () => playAction(el.dataset.play)));
+  P.querySelectorAll('[data-clip]').forEach((el) => (el.onclick = () => {
+    const clip = clips[+el.dataset.clip], mx = studio.fake.userData.mixer;
+    const act = mx.clipAction(clip), prev = studio.fake.userData.action;
+    act.reset().setLoop(THREE.LoopRepeat, Infinity).play();
+    if (prev && prev !== act) prev.crossFadeTo(act, 0.2, false);
+    studio.fake.userData.action = act;
+  }));
+  P.querySelector('#stFire').onchange = (e) => { st.fire = e.target.checked; save(); rerender(); };
+  P.querySelector('#stFireTest').onclick = () => studioFire();
+  P.querySelector('#stMouth').onclick = () => { studio.picking = !studio.picking; if (studio.picking) studio.turntable = false; stEl.canvas.style.cursor = studio.picking ? 'crosshair' : ''; renderStudioPanel(); };
+  const mr = P.querySelector('#stMouthReset');
+  if (mr) mr.onclick = () => { delete st.mouth; save(); placeMouthMarker(); renderStudioPanel(); };
+  const body = P.querySelector('#stFlapBody');
+  if (body) body.oninput = () => { st.flap.body = +body.value; save(); };
+  const span = P.querySelector('#stFlapSpan');
+  if (span) span.onchange = () => {   // the axis is baked into the materials: rebuild preview + board pieces
+    st.flap.span = span.value; save();
+    studioSelect(studio.file, studio.part);
+    for (const t of Object.keys(PIECE_NAMES)) if (pieceModelKey(t) === studio.key) applyPiece(t, false);
+  };
+  P.querySelector('#stFlap').onchange = (e) => { st.flap.on = e.target.checked; save(); rerender(); };
+  const bind = (id, k, num = true) => { const el = P.querySelector(id); if (el) el.oninput = () => { st.flap[k] = num ? +el.value : el.value; save(); }; };
+  bind('#stFlapSpeed', 'speed'); bind('#stFlapAmp', 'amp'); bind('#stFlapAxis', 'axis', false);
+  const inv = P.querySelector('#stFlapInv'); if (inv) inv.onchange = () => { st.flap.invert = inv.checked; save(); };
+  P.querySelector('#stHover').onchange = (e) => { st.hover = e.target.checked; save(); if (!st.hover) studio.fake.userData.j.fig.position.y = studio.fake.userData.proc.baseY; };
+  const team = teamFor(studio.key);
+  const teamChanged = (side, rerenderPanel) => {
+    save();
+    studio.army = side; stEl.army.value = side;
+    studioMaterials();
+    refreshBoardFor(studio.key);
+    if (rerenderPanel) renderStudioPanel();
+  };
+  P.querySelectorAll('[data-tmode]').forEach((el) => (el.onchange = () => { team[el.dataset.tmode].mode = el.value; teamChanged(el.dataset.tmode, true); }));
+  P.querySelectorAll('[data-ttint]').forEach((el) => (el.oninput = () => { team[el.dataset.ttint].tint = el.value; teamChanged(el.dataset.ttint); }));
+  P.querySelectorAll('[data-tstr]').forEach((el) => (el.onchange = () => { team[el.dataset.tstr].strength = +el.value; teamChanged(el.dataset.tstr); }));
+  P.querySelectorAll('[data-tpart]').forEach((el) => (el.onchange = () => {
+    const t = team[el.dataset.tpart], name = studio.partsList[+el.dataset.pidx];
+    if (el.value) t.parts[name] = el.value; else delete t.parts[name];
+    teamChanged(el.dataset.tpart);
+  }));
+  P.querySelector('#stBadge').onchange = (e) => { team.badge = e.target.value; save(); refreshBoardFor(studio.key); };
+  P.querySelectorAll('[data-use]').forEach((el) => (el.onchange = async () => {
+    const t = el.dataset.use, c = cfgFor(t);
+    if (el.checked) { c.file = studio.file; c.part = studio.part; } else { c.file = ''; c.part = ''; }
+    await applyPiece(t);
+    renderStudioList();
+  }));
+}
+function playAction(a) {
+  const f = studio.fake;
+  if (a === 'fire' && (settingsFor(studio.key).fire ?? studio.info.dragon) && !hasClip(f, 'fire')) return studioFire();
+  const ms = playClip(f, a, { fade: 0.15, loop: a === 'idle' || a === 'walk' });
+  if (a === 'fire') studioFire();
+  if (ms && a !== 'idle' && a !== 'walk') setTimeout(() => { if (studio.fake === f) playClip(f, 'idle', { loop: true }); }, ms + 150);
+}
+function studioFire() {
+  studio.holder.updateMatrixWorld(true);
+  let dir = new V3(0, 0, 1).applyAxisAngle(new V3(0, 1, 0), studio.holder.rotation.y);
+  const mouth = mouthOf(studio.holder, dir, studio.key);
+  const out = mouth.clone().sub(new THREE.Box3().setFromObject(studio.holder).getCenter(new V3())).setY(0);
+  if (settingsFor(studio.key).mouth && out.lengthSq() > 1e-4) dir = out.normalize();   // breathe away from the body
+  fireBreath(mouth, dir.clone().setY(-0.2), 1600, studio.scene);
+}
+// Click on the model in the preview to choose where fire comes out.
+const stRay = new THREE.Raycaster();
+stEl.canvas.addEventListener('pointerdown', (e) => (studio.down = { x: e.clientX, y: e.clientY }));
+stEl.canvas.addEventListener('pointerup', (e) => {
+  if (!studio.picking || !studio.down || Math.hypot(e.clientX - studio.down.x, e.clientY - studio.down.y) > 5) return;
+  const r = stEl.canvas.getBoundingClientRect();
+  stRay.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), studio.camera);
+  const root = studio.holder.getObjectByName('modelRoot');
+  const hit = stRay.intersectObject(root, true).find((h) => !h.object.userData.marker);
+  if (!hit) return;
+  root.updateWorldMatrix(true, false);
+  settingsFor(studio.key).mouth = root.worldToLocal(hit.point.clone()).toArray();
+  saveSettings(studio.key);
+  studio.picking = false;
+  stEl.canvas.style.cursor = '';
+  placeMouthMarker();
+  renderStudioPanel();
+  studioFire();
+});
+stEl.army.onchange = () => { studio.army = stEl.army.value; if (studio.holder) studioMaterials(); };
+stEl.turn.onclick = () => { studio.turntable = !studio.turntable; stEl.turn.classList.toggle('on', studio.turntable); };
+stEl.add.addEventListener('change', async () => { await importFiles(stEl.add.files); renderStudioList(); if (!studio.file) openStudio(); });
+document.getElementById('studioBtn').onclick = () => openStudio();
+document.getElementById('stClose').onclick = closeStudio;
+document.getElementById('mStudio').onclick = () => { mUI.modal.style.display = 'none'; openStudio(); };
+addEventListener('resize', () => { if (studio.open) sizeStudio(); });
+
+// ================================================================== battle score (synthesised, original)
+// D minor, ~128 bpm: war drums, driving low-string ostinato, sustained string pads and brass hits.
+// Progression per bar: Dm – B♭ – C – A (major, for tension). Scheduled ahead with a look-ahead timer.
+const music = { playing: false, master: null, timer: null, next: 0, step: 0, bpm: 128 };
+const midiHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+const PROG = [[50, [0, 3, 7]], [46, [0, 4, 7]], [48, [0, 4, 7]], [45, [0, 4, 7]]];  // root (MIDI), triad
+function mVoice(a, out, type, freq, t, dur, gain, cutoff, attack = 0.01, detune = 0) {
+  const o = a.createOscillator(); o.type = type; o.frequency.value = freq; o.detune.value = detune;
+  const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cutoff; f.Q.value = 0.7;
+  const g = a.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + attack);
+  g.gain.setValueAtTime(gain, t + Math.max(attack, dur * 0.7));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(f).connect(g).connect(out);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+function mDrum(a, out, t, pitch, dur, gain, noiseAmt = 0.3) {
+  const o = a.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(pitch * 2.2, t); o.frequency.exponentialRampToValueAtTime(pitch, t + 0.05);
+  const g = a.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(out); o.start(t); o.stop(t + dur + 0.05);
+  if (noiseAmt > 0) {
+    const src = a.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+    const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
+    const ng = a.createGain(); ng.gain.setValueAtTime(gain * noiseAmt, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.5);
+    src.connect(f).connect(ng).connect(out); src.start(t, rand()); src.stop(t + dur);
+  }
+}
+function mNoise(a, out, t, dur, type, freq, gain, attack = 0.005) {
+  const src = a.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+  const f = a.createBiquadFilter(); f.type = type; f.frequency.value = freq;
+  const g = a.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f).connect(g).connect(out); src.start(t, rand()); src.stop(t + dur + 0.05);
+}
+function musicStep(a, i, t) {
+  const out = music.master, s16 = 60 / music.bpm / 4;
+  const bar = Math.floor(i / 16) % 4, s = i % 16, [root, triad] = PROG[bar];
+  // sustained strings (pad): detuned saws, three octaves of the chord
+  if (s === 0) for (const iv of triad) for (const [oct, dt] of [[12, -8], [12, 7], [24, 0]])
+    mVoice(a, out, 'sawtooth', midiHz(root + iv + oct), t, s16 * 16 + 0.25, 0.022, 1400, 0.35, dt);
+  // driving low-string ostinato
+  const ost = [0, 0, 12, 0, 0, 0, 12, 0, 0, 0, 12, 0, 0, 12, 0, 12];
+  mVoice(a, out, 'sawtooth', midiHz(root - 12 + ost[s]), t, s16 * 0.9, 0.05, 700 + (s % 4 === 0 ? 500 : 0), 0.005);
+  // war drums
+  if ([0, 6, 8, 11].includes(s)) mDrum(a, out, t, 55, 0.55, s === 0 ? 0.55 : 0.38);
+  if (s === 0 && bar === 0) mDrum(a, out, t, 38, 1.4, 0.6, 0.5);                  // the big drum
+  if (s === 12 || s === 14) mDrum(a, out, t, 110, 0.25, 0.22, 0.6);               // toms
+  if (s === 4 || s === 12) mNoise(a, out, t, 0.12, 'bandpass', 1900, 0.09);        // frame-drum slap
+  if (s % 2 === 1) mNoise(a, out, t, 0.04, 'highpass', 7000, 0.012);               // shaker
+  // brass stabs on the strong bars
+  if ((bar === 1 || bar === 3) && (s === 0 || s === 3)) for (const iv of triad)
+    mVoice(a, out, 'sawtooth', midiHz(root + iv + 12), t, s === 0 ? 0.45 : 0.22, 0.05, 2200, 0.02);
+  // cymbal swell into the loop
+  if (bar === 3 && s === 8) mNoise(a, out, t, s16 * 8, 'highpass', 5000, 0.05, s16 * 7.5);
+}
+function musicStart() {
+  if (music.playing || !ui.music.checked) return;
+  const a = audioCtx();
+  if (!a) return;
+  music.master = a.createGain();
+  music.master.gain.setValueAtTime(0.0001, a.currentTime);
+  music.master.gain.exponentialRampToValueAtTime(0.5, a.currentTime + 1.2);
+  const comp = a.createDynamicsCompressor();
+  music.master.connect(comp).connect(a.destination);
+  music.playing = true;
+  music.step = 0;
+  music.next = a.currentTime + 0.08;
+  music.timer = setInterval(() => {
+    while (music.next < a.currentTime + 0.15) {
+      musicStep(a, music.step++, music.next);
+      music.next += 60 / music.bpm / 4;
+    }
+  }, 25);
+}
+function musicStop(fade = 1.8) {
+  if (!music.playing) return;
+  const a = audioCtx(), g = music.master, timer = music.timer;
+  music.playing = false;
+  g.gain.cancelScheduledValues(a.currentTime);
+  g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), a.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + fade);
+  setTimeout(() => { clearInterval(timer); g.disconnect(); }, fade * 1000 + 200);
+}
+// A big hit in the score for the killing blow.
+function musicImpact() {
+  if (!music.playing) return;
+  const a = audioCtx(), t = a.currentTime, [root, triad] = PROG[Math.floor(music.step / 16) % 4];
+  mDrum(a, music.master, t, 36, 1.8, 0.7, 0.6);
+  for (const iv of triad) mVoice(a, music.master, 'sawtooth', midiHz(root + iv + 12), t, 1.2, 0.06, 1800, 0.01);
+}
+
+// ================================================================== battle focus
+// While a duel runs, the camera keeps the two fighters centred (also without the cinematic camera).
+let battleFocus = null;               // { a, b, last }
+function followBattle() {
+  if (!battleFocus) return;
+  const { a, b } = battleFocus;
+  const pa = a && a.parent ? a.position : battleFocus.lastA, pb = b && b.parent ? b.position : battleFocus.lastB;
+  if (!pa || !pb) return;
+  battleFocus.lastA = pa.clone(); battleFocus.lastB = pb.clone();
+  const mid = pa.clone().add(pb).multiplyScalar(0.5).setY(giant ? 0.5 : 0.45);
+  const delta = mid.sub(controls.target).multiplyScalar(0.08);
+  controls.target.add(delta);
+  camera.position.add(delta);         // keep the framing, just slide with the action
+}
+// Keep "the middle of the screen" in the visible area when the settings panel covers the left side.
+function updateViewOffset() {
+  const panel = document.getElementById('panel');
+  const open = panel && !panel.classList.contains('hidden') && innerWidth > 700;
+  const dx = open ? Math.min(panel.offsetWidth + 16, innerWidth * 0.4) / 2 : 0;
+  if (dx) camera.setViewOffset(innerWidth, innerHeight, -dx, 0, innerWidth, innerHeight);
+  else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+}
+
+// ================================================================== battle choreography
+const worldTip = (p) => p.userData.j.tip.getWorldPosition(new V3());
+const hasShield = (p) => !!p.getObjectByName('shield');
+
+// One attack: windup -> swing -> (blocked: sparks & recoil | final: hit).
+async function strike(att, def, d, kind, final) {
+  const S = STRIKES[kind];
+  const useShield = !final && hasShield(def) && rand() < 0.55;
+  const windDur = final ? 420 : 300;
+  const pw = poseTo(att, S.wind, windDur);
+  if (!final) poseTo(def, useShield ? S.shield : S.parry, windDur + 30);
+  else poseTo(def, { torso: [0, 0, 0.1], shoulderR: [-0.3, 0, 0.9], elbowR: [0, 0, 1.1] }, windDur);
+  await pw;
+  if (final) timeScale = 0.28;                     // slow motion for the killing blow
+  const tr = startTrail(att);
+  sfx.whoosh(final ? 0.35 : 0.2);
+  const from = att.position.clone();
+  const lunge = kind === 'thrust' ? 0.16 : 0.07;
+  await Promise.all([
+    poseTo(att, S.hit, final ? 230 : 150, easeIn),
+    tween(final ? 230 : 150, (t) => att.position.copy(from).addScaledVector(d, lunge * easeIn(t))),
+  ]);
+  tr.active = false;
+  const tip = worldTip(att);
+  const contact = tip.lerp(def.position.clone().setY(tip.y), 0.25);
+  if (final) return contact;
+  if (useShield) { sparks(contact, d, 0.5, 0xffb060); sfx.thunk(); }
+  else { sparks(contact, d, 1); sfx.clang(); }
+  // recoil: both are pushed back a little and return to guard
+  const df = def.position.clone();
+  await Promise.all([
+    tween(200, (t) => {
+      att.position.copy(from).addScaledVector(d, lunge * (1 - easeOut(t)) - 0.05 * Math.sin(Math.PI * t));
+      def.position.copy(df).addScaledVector(d, 0.06 * Math.sin(Math.PI * t));
+    }),
+    toGuard(att, 240), toGuard(def, 240),
+  ]);
+  att.position.copy(from);
+  def.position.copy(df);
+  await wait(90);
+}
+
+// Attack by an imported model: its own attack/fire animation (or a rigid lunge), fire breath for dragons.
+async function strikeModel(att, def, d, final) {
+  const fire = breathesFire(att);
+  if (!final) {
+    if (hasClip(def, 'block')) playClip(def, 'block');
+    else poseTo(def, hasShield(def) ? STRIKES.side.shield : STRIKES.overhead.parry, 300);
+  }
+  let ms = playClip(att, fire && hasClip(att, 'fire') ? 'fire' : 'attack', { fade: 0.15 });
+  if (ms) await wait(Math.min(ms * 0.42, 900));
+  else await poseTo(att, { lean: 0.26 }, final ? 420 : 300);
+  if (final) timeScale = 0.35;
+  let contact;
+  if (fire) {
+    const mouth = mouthOf(att, d);
+    const target = def.position.clone().setY(0.45);
+    fireBreath(mouth, target.clone().sub(mouth), final ? 1500 : 900);
+    if (!ms) poseTo(att, { lean: -0.18 }, 220);
+    await wait(final ? 950 : 650);
+    contact = target;
+    if (!final) sparks(target.clone().addScaledVector(d, -0.25), d, 0.35, 0xff8a30);
+  } else {
+    const tr = startTrail(att);
+    if (ms) await wait(Math.min(ms * 0.15, 280));
+    else await poseTo(att, { lean: -0.32 }, 150, easeIn);
+    tr.active = false;
+    const tip = worldTip(att);
+    contact = tip.lerp(def.position.clone().setY(tip.y), 0.4);
+  }
+  if (final) return { contact, fire };
+  if (!fire) {
+    if (hasShield(def)) { sparks(contact, d, 0.5, 0xffb060); sfx.thunk(); }
+    else { sparks(contact, d, 1); sfx.clang(); }
+  }
+  await wait(ms ? Math.max(120, ms * 0.35 - 250) : 140);
+  toGuard(att, 240);
+  toGuard(def, 240);
+  await wait(260);
+}
+async function attack(att, def, d, kind, final) {
+  if (att.userData.rigid) return strikeModel(att, def, d, final);
+  const contact = await strike(att, def, d, kind, final);
+  return final ? { contact, fire: false } : undefined;
+}
+
+async function duel(m, att, def) {
+  const vp = def.position.clone();
+  const d = vp.clone().sub(att.position).setY(0);
+  const dist = d.length();
+  d.normalize();
+  const yaw = dirYaw(d);
+  musicStart();                                    // the battle score fades in
+  const cam = cinematicIn(att.position.clone(), vp);
+
+  // close the distance
+  const reach = breathesFire(att) ? 1.7 : 0.72 * Math.max(SCALE[att.userData.type] || 1, 0.9);   // dragons breathe from afar
+  const approach = vp.clone().addScaledVector(d, -reach);
+  approach.y = BOARD_Y;
+  turn(def, yaw + Math.PI, 360).then(() => toGuard(def, 300));
+  await turn(att, yaw);
+  if (dist > reach + 0.05) {
+    if (att.userData.type === 'n' && dist > 1.4) await leap(att, approach, 0.7);
+    else await walk(att, approach, 1.15);
+  }
+  await cam;
+  battleFocus = { a: att, b: def };                // keep the fight centred on screen
+  await toGuard(att, 260);
+
+  // exchange of blows
+  const kinds = ['overhead', 'side', 'thrust'];
+  const pick = () => kinds[Math.floor(rand() * kinds.length)];
+  if (ui.battle.value === 'epic') {
+    await attack(att, def, d, pick(), false);
+    await attack(def, att, d.clone().negate(), pick(), false);  // counter-attack
+    if (rand() < 0.6) await attack(att, def, d, pick(), false);
+  }
+
+  // the decisive blow
+  const kind = rand() < 0.5 ? 'overhead' : 'side';
+  const { contact, fire } = await attack(att, def, d, kind, true);
+  musicImpact();
+  if (fire) scorch(def);                           // engulfed in flame
+  else { sparks(contact, d, 0.7, 0xfff0d0); sfx.clang(0.6); }
+  const dp = def.position.clone();
+  const hurtMs = fire ? 0 : playClip(def, 'hurt', { fade: 0.1 });
+  await Promise.all([
+    hurtMs ? wait(Math.min(hurtMs * 0.5, 450)) : poseTo(def, HIT_REACT, 160, easeOut),
+    tween(160, (t) => def.position.copy(dp).addScaledVector(d, 0.12 * easeOut(t))),
+  ]);
+  tween(500, (t) => (timeScale = (fire ? 0.35 : 0.28) + (fire ? 0.65 : 0.72) * t)).then(() => (timeScale = 1));
+  await wait(220);
+  const deathMs = fire ? 0 : playClip(def, 'death', { fade: 0.15 });
+  if (deathMs) await wait(Math.min(deathMs, 2600));   // the model's own death animation
+  else await poseTo(def, KNEEL, 520);              // falls to their knees
+  toIdle(att, 400);
+  await wait(250);
+  if (!fire) petrify(def);                         // turns to stone...
+  spawnParticles(def.position.clone().setY(0.5), { n: 30, color: fire ? 0xff7a2a : ARMY[def.userData.color].glow, size: 0.08, speed: 0.6, life: 0.6, up: 0.8, additive: true });
+  await wait(fire ? 700 : 420);
+  shatter(def, d);                                 // ...and crumbles
+  await wait(300);
+  const winMs = playClip(att, 'victory', { fade: 0.2 });
+  if (winMs) await wait(Math.min(winMs, 1800));
+  else await poseTo(att, VICTORY, 380);
+  sfx.clang(0.3);
+  await wait(420);
+  await toIdle(att, 300);
+  await walk(att, sqPos(m.to));
+  await turnHome(att);
+  battleFocus = null;
+  musicStop();
+  await cinematicOut();
+}
+
+// ================================================================== game state
+const ui = {
+  status: document.getElementById('status'), thinking: document.getElementById('thinking'),
+  moves: document.getElementById('moves'), mode: document.getElementById('mode'), level: document.getElementById('level'),
+  undo: document.getElementById('undo'), promo: document.getElementById('promo'), cine: document.getElementById('cine'),
+  giant: document.getElementById('giant'), sound: document.getElementById('sound'), music: document.getElementById('music'), battle: document.getElementById('battle'),
+};
+
+let state, stack, sans, lastMove, selected, legalFromSelected, busy, hoverSq = -1, gameId = 0;
+let pieceMeshes = new Array(64).fill(null);
+const pieceLayer = new THREE.Group();
+scene.add(pieceLayer);
+
+function trayPos(color, i) {
+  const side = color === 'b' ? 1 : -1;
+  const col = Math.floor(i / 8), row = i % 8;
+  return new V3(side * (5.0 + col * 0.6), TABLE_Y, side * (3.5 - row * 0.9));
+}
+
+// ---- awareness: every piece faces its attacker, else the nearest enemy within two squares, else forward.
+function computeFacing() {
+  const facing = new Array(64).fill(null);
+  const moves = { w: C.legalMoves({ ...state, turn: 'w' }), b: C.legalMoves({ ...state, turn: 'b' }) };
+  const dist = (a, b) => Math.max(Math.abs((a & 7) - (b & 7)), Math.abs((a >> 3) - (b >> 3)));
+  const nearest = (sq, list) => list.reduce((best, x) => (best === null || dist(sq, x) < dist(sq, best) ? x : best), null);
+  state.board.forEach((p, sq) => {
+    if (!p) return;
+    const opp = C.other(p.color);
+    const attackers = [...new Set(moves[opp].filter((m) => m.to === sq).map((m) => m.from))];
+    let target = nearest(sq, attackers);
+    if (target === null) {
+      const enemies = [];
+      state.board.forEach((q, i) => { if (q && q.color === opp && dist(sq, i) <= 2) enemies.push(i); });
+      target = nearest(sq, enemies);
+    }
+    facing[sq] = target === null ? defaultYaw(p.color) : dirYaw(sqPos(target).sub(sqPos(sq)));
+  });
+  return facing;
+}
+let watch = [];                                // pieces currently moving / fighting (others look at them)
+function watchAction(dt) {
+  const focus = watch.find((w) => w && w.parent);
+  if (!focus) return;
+  for (const p of pieceMeshes) {
+    if (!p || watch.includes(p)) continue;
+    const d = focus.position.clone().sub(p.position).setY(0), len = d.length();
+    if (len < 0.01 || len > 3.2) continue;
+    const j = p.userData.j, rel = shortest(0, dirYaw(d) - p.userData.body.rotation.y);
+    if (j.head) j.head.rotation.y += (THREE.MathUtils.clamp(rel, -1.1, 1.1) - j.head.rotation.y) * Math.min(1, dt * 5);
+    else if (len < 1.6) p.userData.body.rotation.y += rel * Math.min(1, dt * 2.5);   // models turn their whole body
+  }
+}
+
+function rebuildPieces(anim = {}) {
+  const prevYaw = {};
+  pieceMeshes.forEach((m, sq) => { if (m) prevYaw[sq] = m.userData.body.rotation.y; });
+  if (anim.move) {                             // the moved piece keeps the direction it arrived facing
+    prevYaw[anim.move.to] = prevYaw[anim.move.from];
+    if (anim.move.castle) {
+      const home = anim.move.from - 4;
+      const [rf, rt] = anim.move.castle === 'K' ? [home + 7, home + 5] : [home, home + 3];
+      prevYaw[rt] = prevYaw[rf];
+    }
+  }
+  const facing = computeFacing();
+  mixers.clear();
+  procPieces.clear();
+  pieceLayer.clear();
+  pieceMeshes = new Array(64).fill(null);
+  state.board.forEach((p, sq) => {
+    if (!p) return;
+    const m = makePiece(p.type, p.color);
+    m.position.copy(sqPos(sq));
+    m.userData.sq = sq;
+    if (facing) {
+      m.userData.targetYaw = facing[sq];
+      if (anim.move && prevYaw[sq] !== undefined) m.userData.body.rotation.y = prevYaw[sq];
+    }
+    pieceLayer.add(m);
+    pieceMeshes[sq] = m;
+    if (anim.promoSq === sq) {
+      spawnParticles(sqPos(sq, 0.4), { n: 60, color: ARMY[p.color].glow, size: 0.09, speed: 1.2, life: 1.2, up: 1.5, additive: true });
+      tween(800, (t) => {
+        const e = easeOut(t);
+        m.scale.set(1, Math.max(0.01, e), 1);
+        m.userData.body.rotation.y = defaultYaw(p.color) + (1 - e) * Math.PI * 2;
+      });
+    }
+  });
+  for (const color of ['w', 'b']) {
+    state.captured[color].forEach((type, i) => {
+      const m = makePiece(type, color);
+      petrify(m);
+      m.userData.body.rotation.y = color === 'b' ? Math.PI : 0;  // fallen face the board
+      m.position.copy(trayPos(color, i));
+      pieceLayer.add(m);
+      const last = anim.trayColor === color && i === state.captured[color].length - 1;
+      if (last) tween(700, (t) => m.scale.setScalar(0.65 * easeOut(t) + 0.001));
+      else m.scale.setScalar(0.65);
+    });
+  }
+}
+
+function refreshOverlay() {
+  overlay.clear();
+  if (lastMove) { addOverlay(lastMove.from, planeGeo, MAT.last); addOverlay(lastMove.to, planeGeo, MAT.last); }
+  if (C.inCheck(state)) addOverlay(C.kingSquare(state.board, state.turn), planeGeo, MAT.check, 0.004);
+  if (hoverSq >= 0 && !busy) addOverlay(hoverSq, planeGeo, MAT.hover, 0.005);
+  if (selected != null) {
+    addOverlay(selected, planeGeo, MAT.select, 0.006);
+    const seen = new Set();
+    for (const m of legalFromSelected) {
+      if (seen.has(m.to)) continue;
+      seen.add(m.to);
+      addOverlay(m.to, m.captured ? ringGeo : dotGeo, m.captured ? MAT.capture : MAT.move, 0.008);
+    }
+  }
+}
+
+const NAMES = { w: 'White', b: 'Black' };
+function refreshUI() {
+  const st = C.status(state);
+  let text, cls = '';
+  switch (st.state) {
+    case 'checkmate': text = `Checkmate — ${NAMES[st.winner]} wins`; cls = 'done'; break;
+    case 'stalemate': text = 'Stalemate — draw'; cls = 'done'; break;
+    case 'fifty': text = 'Draw by 50-move rule'; cls = 'done'; break;
+    case 'repetition': text = 'Draw by threefold repetition'; cls = 'done'; break;
+    case 'insufficient': text = 'Draw — insufficient material'; cls = 'done'; break;
+    case 'check': text = `${NAMES[state.turn]} to move — Check!`; cls = 'alert'; break;
+    default: text = `${NAMES[state.turn]} to move`;
+  }
+  ui.status.textContent = text;
+  ui.status.className = cls;
+  ui.moves.innerHTML = '';
+  for (let i = 0; i < sans.length; i += 2) {
+    const n = document.createElement('span'); n.className = 'n'; n.textContent = i / 2 + 1 + '.';
+    const w = document.createElement('span'); w.textContent = sans[i];
+    const b = document.createElement('span'); b.textContent = sans[i + 1] || '';
+    if (i === sans.length - 1) w.className = 'last';
+    if (i + 1 === sans.length - 1) b.className = 'last';
+    ui.moves.append(n, w, b);
+  }
+  ui.moves.scrollTop = ui.moves.scrollHeight;
+  ui.undo.disabled = stack.length === 0 || busy;
+  return st;
+}
+
+const aiColor = () => ({ 'ai-w': 'b', 'ai-b': 'w' }[ui.mode.value] || null);
+const humanTurn = () => state.turn !== aiColor();
+
+function clearEffects() {
+  battleFocus = null;
+  musicStop(0.3);
+  for (const s of shards) scene.remove(s.m);
+  for (const p of particles) scene.remove(p.pts);
+  for (const t of trails) scene.remove(t.mesh);
+  shards.length = particles.length = trails.length = 0;
+  timeScale = 1;
+  if (cine) { controls.minDistance = cine.min; controls.enabled = true; cine = null; }
+}
+
+function newGame() {
+  gameId++;
+  tweens.length = 0;
+  clearEffects();
+  state = C.newGame();
+  stack = []; sans = []; lastMove = null; selected = null; legalFromSelected = []; busy = false;
+  rebuildPieces();
+  refreshOverlay();
+  refreshUI();
+  applyView(ui.mode.value === 'ai-b' ? 'b' : 'w', false);
+  maybeAI();
+}
+
+function select(sq) {
+  const prev = selected;
+  selected = sq;
+  legalFromSelected = sq == null ? [] : C.legalMoves(state, sq);
+  if (prev != null && pieceMeshes[prev] && prev !== sq) toIdle(pieceMeshes[prev], 250);
+  if (sq != null && pieceMeshes[sq]) toGuard(pieceMeshes[sq], 250);  // the chosen warrior raises its sword
+  refreshOverlay();
+}
+
+async function playMove(m) {
+  busy = true;
+  const myGame = gameId;
+  const san = C.toSAN(state, m, C.legalMoves(state));
+  selected = null; legalFromSelected = [];
+  refreshOverlay();
+
+  const mover = pieceMeshes[m.from];
+  watch = [mover, m.captured ? pieceMeshes[m.ep ? m.to + (m.color === 'w' ? -8 : 8) : m.to] : null,
+    m.castle ? pieceMeshes[m.castle === 'K' ? m.from + 3 : m.from - 4] : null].filter(Boolean);
+  const animate = async () => {
+    if (m.captured) {
+      const capSq = m.ep ? m.to + (m.color === 'w' ? -8 : 8) : m.to;
+      await duel(m, mover, pieceMeshes[capSq]);
+    } else if (m.castle) {
+      const home = m.from - 4;
+      const [rf, rt] = m.castle === 'K' ? [home + 7, home + 5] : [home, home + 3];
+      const rook = pieceMeshes[rf];
+      toIdle(mover, 200);
+      await turn(mover, dirYaw(sqPos(m.to).sub(mover.position)));
+      await walk(mover, sqPos(m.to));
+      await turn(rook, dirYaw(sqPos(rt).sub(rook.position)));
+      await leap(rook, sqPos(rt), 1.5);              // the tower guard vaults past its king
+      await Promise.all([turnHome(mover), turnHome(rook)]);
+    } else {
+      toIdle(mover, 200);
+      await turn(mover, dirYaw(sqPos(m.to).sub(mover.position)));
+      await travel(mover, sqPos(m.to));
+      await turnHome(mover);
+    }
+  };
+  try {
+    await Promise.race([animate(), new Promise((r) => setTimeout(r, 25000))]);   // watchdog: never lock the game
+  } catch (e) {
+    console.error('Move animation failed — the move is still played:', e);
+  }
+  timeScale = 1;
+  battleFocus = null;
+  if (music.playing) musicStop();
+  if (cine) cinematicOut();                        // always hand the camera back (zoom / orbit)
+  controls.enabled = !cine || controls.enabled;
+  if (myGame !== gameId) return;
+
+  stack.push({ state, lastMove });
+  state = C.applyMove(state, m);
+  sans.push(san);
+  lastMove = m;
+  watch = [];
+  rebuildPieces({ move: m, promoSq: m.promo ? m.to : -1, trayColor: m.captured ? C.other(m.color) : null });
+  busy = false;
+  refreshOverlay();
+  refreshUI();
+  maybeAI();
+}
+
+function maybeAI() {
+  const ai = aiColor();
+  if (!ai || state.turn !== ai || C.status(state).over) return;
+  busy = true;
+  ui.thinking.style.display = 'block';
+  ui.undo.disabled = true;
+  const snapshot = state;
+  setTimeout(() => {
+    if (state !== snapshot) return;
+    const m = C.bestMove(state, +ui.level.value);
+    ui.thinking.style.display = 'none';
+    if (m) playMove(m);
+  }, 350);
+}
+
+function undo() {
+  if (busy || !stack.length) return;
+  let steps = aiColor() && stack.length > 1 ? 2 : 1;
+  while (steps-- && stack.length) {
+    const prev = stack.pop();
+    state = prev.state; lastMove = prev.lastMove; sans.pop();
+  }
+  selected = null; legalFromSelected = [];
+  rebuildPieces();
+  refreshOverlay();
+  refreshUI();
+  maybeAI();
+}
+
+// ================================================================== promotion dialog
+const GLYPH = { w: { q: '♕', r: '♖', b: '♗', n: '♘' }, b: { q: '♛', r: '♜', b: '♝', n: '♞' } };
+function askPromotion(color) {
+  return new Promise((resolve) => {
+    const box = ui.promo.querySelector('.choices');
+    box.innerHTML = '';
+    for (const t of ['q', 'r', 'b', 'n']) {
+      const btn = document.createElement('button');
+      btn.textContent = GLYPH[color][t];
+      btn.onclick = () => { ui.promo.style.display = 'none'; resolve(t); };
+      box.appendChild(btn);
+    }
+    ui.promo.style.display = 'grid';
+  });
+}
+
+// ================================================================== input
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+function squareUnder(ev) {
+  const r = renderer.domElement.getBoundingClientRect();
+  pointer.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(pointer, camera);
+  const targets = pieceMeshes.filter(Boolean).map((p) => (p.userData.rigid && p.getObjectByName('hitbox')) || p);
+  const hits = raycaster.intersectObjects([...targets, ...squares], true);
+  for (const h of hits) {
+    let o = h.object;
+    while (o && o.userData.sq === undefined) o = o.parent;
+    if (o) return o.userData.sq;
+  }
+  return -1;
+}
+
+let downAt = null;
+renderer.domElement.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY }; audio(); });
+renderer.domElement.addEventListener('pointerup', async (e) => {
+  if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 6) return;
+  downAt = null;
+  if (!state || busy || !humanTurn() || C.status(state).over) return;
+  const sq = squareUnder(e);
+  if (sq < 0) return select(null);
+  const p = state.board[sq];
+  if (selected != null) {
+    const options = legalFromSelected.filter((m) => m.to === sq);
+    if (options.length) {
+      let m = options[0];
+      if (options.length > 1) {
+        busy = true;
+        const t = await askPromotion(state.turn);
+        busy = false;
+        m = options.find((o) => o.promo === t);
+      }
+      return playMove(m);
+    }
+  }
+  if (p && p.color === state.turn && sq !== selected) select(sq);
+  else select(null);
+});
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (e.buttons || !state) return;
+  const sq = squareUnder(e);
+  const p = sq >= 0 ? state.board[sq] : null;
+  const clickable = !busy && humanTurn() && sq >= 0 &&
+    ((p && p.color === state.turn) || legalFromSelected.some((m) => m.to === sq));
+  renderer.domElement.style.cursor = clickable ? 'pointer' : 'default';
+  const h = clickable ? sq : -1;
+  if (h !== hoverSq) { hoverSq = h; refreshOverlay(); }
+});
+
+// ================================================================== camera views
+let viewSide = 'w', giant = false;
+const VIEWS = {
+  normal: { target: new V3(0, 0.2, 0), dist: 12, polar: 0.82, fov: 42, min: 3, max: 24, maxPolar: Math.PI * 0.46 },
+  giant: { target: new V3(0, 0.45, 0), dist: 6.8, polar: 1.24, fov: 55, min: 1.2, max: 10, maxPolar: Math.PI * 0.53 },
+};
+function applyView(side, animate = true) {
+  viewSide = side;
+  orientLabels(side === 'w');
+  const v = giant ? VIEWS.giant : VIEWS.normal;
+  Object.assign(controls, { minDistance: v.min, maxDistance: v.max, maxPolarAngle: v.maxPolar });
+  scene.fog.near = giant ? 9 : 16;
+  const az = side === 'w' ? 0 : Math.PI;
+  const off = new V3().setFromSphericalCoords(v.dist, v.polar, az);
+  const toPos = v.target.clone().add(off);
+  const fromFov = camera.fov;
+  if (!animate) {
+    camera.position.copy(toPos); controls.target.copy(v.target);
+    camera.fov = v.fov; camera.updateProjectionMatrix();
+    return;
+  }
+  const fromSph = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+  const toSph = new THREE.Spherical().setFromVector3(off);
+  const dTheta = shortest(fromSph.theta, toSph.theta) - fromSph.theta;
+  const fromTarget = controls.target.clone();
+  tween(1000, (t) => {
+    const e = ease(t);
+    controls.target.lerpVectors(fromTarget, v.target, e);
+    camera.position.setFromSpherical(new THREE.Spherical(
+      fromSph.radius + (toSph.radius - fromSph.radius) * e,
+      fromSph.phi + (toSph.phi - fromSph.phi) * e,
+      fromSph.theta + dTheta * e)).add(controls.target);
+    camera.fov = fromFov + (v.fov - fromFov) * e;
+    camera.updateProjectionMatrix();
+  });
+}
+
+// Zoom: mouse wheel / trackpad pinch (OrbitControls), the on-screen buttons, or the + / - keys.
+controls.zoomSpeed = 1.2;
+function zoomBy(f) {
+  if (cine) return;
+  controls.enabled = true;
+  const off = camera.position.clone().sub(controls.target);
+  const d = THREE.MathUtils.clamp(off.length() * f, controls.minDistance, controls.maxDistance);
+  const toPos = controls.target.clone().add(off.setLength(d));
+  const from = camera.position.clone();
+  tween(220, (t) => camera.position.lerpVectors(from, toPos, ease(t)));
+}
+document.getElementById('zoomIn').onclick = () => zoomBy(0.8);
+document.getElementById('zoomOut').onclick = () => zoomBy(1.25);
+document.getElementById('zoomReset').onclick = () => { if (!cine) { controls.enabled = true; applyView(viewSide); } };
+// Settings panel can be hidden and brought back with a button (or the h key); remembered per browser.
+function setPanel(open) {
+  document.getElementById('panel').classList.toggle('hidden', !open);
+  document.getElementById('panelShow').classList.toggle('on', !open);
+  try { localStorage.setItem('chess.panel', open ? 'open' : 'hidden'); } catch {}
+  updateViewOffset();
+}
+document.getElementById('panelHide').onclick = () => setPanel(false);
+document.getElementById('panelShow').onclick = () => setPanel(true);
+try { if (localStorage.getItem('chess.panel') === 'hidden') setPanel(false); } catch {}
+document.getElementById('new').onclick = newGame;
+document.getElementById('undo').onclick = undo;
+document.getElementById('flip').onclick = () => { if (!cine) applyView(viewSide === 'w' ? 'b' : 'w'); };
+ui.giant.onclick = () => {
+  if (cine) return;
+  giant = !giant;
+  ui.giant.classList.toggle('on', giant);
+  ui.giant.textContent = giant ? 'Overhead' : 'Giant view';
+  applyView(viewSide);
+};
+ui.mode.onchange = newGame;
+addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undo(); }
+  if (e.key === 'Escape') select(null);
+  if (e.key === 'g') ui.giant.click();
+  if (e.key === 'h' && !(e.target.closest && e.target.closest('input, select, textarea'))) setPanel(document.getElementById('panel').classList.contains('hidden'));
+  if (e.target.closest && e.target.closest('input, select, textarea')) return;
+  if (e.key === '+' || e.key === '=') zoomBy(0.8);
+  if (e.key === '-' || e.key === '_') zoomBy(1.25);
+  if (e.key === '0') document.getElementById('zoomReset').click();
+});
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  renderer.setSize(innerWidth, innerHeight);
+  updateViewOffset();
+});
+updateViewOffset();
+
+// ================================================================== loop
+let prevReal = performance.now();
+const shakeOffset = new V3();
+function idleLife(time) {
+  if (busy) return;
+  for (const p of pieceMeshes) {
+    if (!p) continue;
+    const j = p.userData.j, ph = p.userData.phase;
+    if (p.userData.targetYaw !== undefined && p !== pieceMeshes[selected]) {                         // turn to face what matters
+      const b = p.userData.body, to = shortest(b.rotation.y, p.userData.targetYaw);
+      b.rotation.y += (to - b.rotation.y) * 0.06;
+    }
+    if (!(p.userData.proc && p.userData.proc.st.hover))
+      j.fig.position.y += (BASE_TOP + Math.sin(time * 1.6 + ph) * 0.004 - j.fig.position.y) * 0.1;    // breathing
+    if (j.head) j.head.rotation.y += (Math.sin(time * 0.35 + ph) * 0.35 - j.head.rotation.y) * 0.03;           // glancing around
+    if (j.cape) j.cape.rotation.z += (Math.sin(time * 1.1 + ph) * 0.04 - 0.02 - j.cape.rotation.z) * 0.05;
+    if (j.hNeck) j.hNeck.rotation.z += (Math.sin(time * 0.8 + ph) * 0.12 - j.hNeck.rotation.z) * 0.05;
+  }
+}
+let simMode = false, frozen = false;
+let simTime = 0;
+function step(rawDt, nowSec) {
+  const realDt = Math.min(0.05, rawDt);                         // physics step stays small
+  clock += rawDt * 1000 * timeScale;
+  for (let i = tweens.length - 1; i >= 0; i--) {
+    const tw = tweens[i];
+    const t = Math.min(1, (clock - tw.t0) / tw.dur);
+    tw.update(t);
+    if (t === 1) { tweens.splice(i, 1); tw.resolve(); }
+  }
+  updateEffects(realDt * timeScale);
+  updateFires(realDt * timeScale);
+  for (const mx of mixers) mx.update(realDt * timeScale);
+  for (const p of procPieces) updateProcedural(p, realDt * timeScale);
+  if (busy) watchAction(realDt);
+  bendTime.value += realDt * timeScale;
+  syncBend();
+  updateTorches(nowSec, realDt);
+  idleLife(nowSec);
+  if (cine && cine.drift) {   // slow orbit around the duel
+    const off = camera.position.clone().sub(controls.target);
+    off.applyAxisAngle(new V3(0, 1, 0), realDt * timeScale * 0.05);
+    camera.position.copy(controls.target).add(off);
+  }
+  followBattle();
+  controls.update();
+}
+renderer.setAnimationLoop((nowReal) => {
+  const rawDt = Math.min(0.25, (nowReal - prevReal) / 1000);   // animations follow real time even at low fps
+  prevReal = nowReal;
+  if (simMode) return;                                         // test mode: no rendering while stepping
+  if (!frozen) step(rawDt, nowReal / 1000);
+  shakeOffset.set(0, 0, 0);
+  if (shake && !frozen) {
+    const k = (clock - shake.t0) / shake.dur;
+    if (k >= 1) shake = null;
+    else shakeOffset.set(rand() - 0.5, rand() - 0.5, rand() - 0.5).multiplyScalar(shake.amp * (1 - k) * (1 - k) * 2);
+  }
+  camera.position.add(shakeOffset);
+  renderer.render(scene, camera);
+  camera.position.sub(shakeOffset);
+});
+
+// Small hook for scripted testing, e.g. chessDebug.play("e2", "e4")
+window.chessDebug = {
+  play(from, to, promo) {
+    const m = C.legalMoves(state).find((x) => x.from === C.sqIndex(from) && x.to === C.sqIndex(to) && (!x.promo || x.promo === (promo || 'q')));
+    if (!m || busy) return false;
+    playMove(m);
+    return true;
+  },
+  get busy() { return busy; },
+  view(px, py, pz, tx, ty, tz) { camera.position.set(px, py, pz); controls.target.set(tx, ty, tz); },
+  pose(sqName, name) {
+    const p = pieceMeshes[C.sqIndex(sqName)];
+    const [k, part] = name.split('.');
+    const pose = part ? STRIKES[k][part] : { guard: GUARD, kneel: KNEEL, victory: VICTORY, hit: HIT_REACT }[k];
+    applyPose(p.userData.j, { ...idlePose(p.userData.type), ...pose });
+  },
+};
+
+
+// Test options via URL hash, e.g. #view=0,1.6,5.6,0,0.6,2.8&pose=e1:overhead.wind&moves=e2e4,d7d5,e4d5
+function runTestHooks() {
+  const opts = Object.fromEntries(location.hash.slice(1).split('&').filter(Boolean).map((kv) => kv.split('=')));
+  if (opts.battle) ui.battle.value = opts.battle;
+  if (opts.nocine) ui.cine.checked = false;
+  if (opts.hidepanel) setPanel(false);
+  if (opts.openmodels) document.getElementById('modelsBtn').click();
+  if (opts.studio) setTimeout(() => openStudio(opts.studio === '1' ? undefined : decodeURIComponent(opts.studio)), 50);
+  if (opts.stscroll) setTimeout(() => { const P = document.getElementById('stPanel'); P.scrollTop = P.scrollHeight * +opts.stscroll; }, 1500);
+  if (opts.view) {
+    const v = opts.view.split(',').map(Number);
+    chessDebug.view(...v);
+  }
+  if (opts.click) {   // e.g. #click=g1,f3 — real pointer events at those squares' screen positions
+    const seq = opts.click.split(',');
+    const clickSq = (name) => {
+      const v = sqPos(C.sqIndex(name), 0.05).project(camera), r = renderer.domElement.getBoundingClientRect();
+      const x = r.left + ((v.x + 1) / 2) * r.width, y = r.top + ((1 - v.y) / 2) * r.height;
+      for (const type of ['pointerdown', 'pointerup']) renderer.domElement.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, bubbles: true }));
+      console.info(`click ${name} -> selected=${selected == null ? '-' : C.sqName(selected)} busy=${busy} moves=${sans.join(' ')}`);
+    };
+    let i = 0;
+    const t = setInterval(() => { if (i >= seq.length) { clearInterval(t); setTimeout(() => console.info('after clicks: moves=' + sans.join(' ')), 6000); return; } if (!busy) clickSq(seq[i++]); }, 1500);
+  }
+  if (opts.pose) for (const pr of opts.pose.split(';')) { const [sq, name] = pr.split(':'); chessDebug.pose(sq, name); }
+  const queue = opts.moves ? opts.moves.split(',') : [];
+  const nextMove = () => {
+    if (busy || !queue.length) return;
+    const mv = queue.shift();
+    chessDebug.play(mv.slice(0, 2), mv.slice(2, 4));
+  };
+  if (opts.sim) {
+    // Deterministic test mode: step the game in fixed 16 ms ticks, then freeze for a screenshot.
+    simMode = true;
+    console.info('sim start');
+    (async () => {
+      for (let t = 0; t < +opts.sim; t += 16) {
+        nextMove();
+        step(0.016, t / 1000);
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      simMode = false;
+      frozen = true;
+      document.title = 'SIM DONE';
+      console.info('sim done', sans.join(' '));
+    })();
+  } else if (queue.length) {
+    const tick = setInterval(() => { if (!queue.length) clearInterval(tick); nextMove(); }, 100);
+  }
+}
+(async () => {
+  if (/sim=/.test(location.hash)) { await loadModels().catch(() => {}); newGame(); runTestHooks(); }
+  else { newGame(); runTestHooks(); loadModels().catch((e) => console.warn(e)); }
+})();
+</script>
+</body>
+</html>
